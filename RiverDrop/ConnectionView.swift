@@ -43,7 +43,7 @@ struct ConnectionView: View {
                 sftpService.errorMessage = nil
 
                 do {
-                    try KeychainHelper.save(account: username, host: host, password: password)
+                    try KeychainHelper.save(username: username, host: host, password: password)
                 } catch {
                     sftpService.errorMessage = "Save credentials failed for \(username): \(error.localizedDescription). Suggested fix: unlock Keychain access for RiverDrop and retry."
                 }
@@ -72,28 +72,19 @@ struct ConnectionView: View {
         .padding(40)
         .frame(minWidth: 400, minHeight: 350)
         .onAppear {
-            if let savedHost = UserDefaults.standard.string(forKey: "lastHost") {
-                host = savedHost
-            }
+            let savedHost = UserDefaults.standard.string(forKey: "lastHost") ?? ""
+            let savedUser = UserDefaults.standard.string(forKey: "lastUsername") ?? ""
 
-            if !username.isEmpty {
+            if host.isEmpty { host = savedHost }
+            if username.isEmpty { username = savedUser }
+
+            if !username.isEmpty && !host.isEmpty {
                 do {
-                    if let creds = try KeychainHelper.load(account: username) {
-                        host = creds.host
-                        password = creds.password
+                    if let savedPassword = try KeychainHelper.load(username: username, host: host) {
+                        password = savedPassword
                     }
                 } catch {
                     sftpService.errorMessage = "Load credentials failed for \(username): \(error.localizedDescription). Suggested fix: remove the saved keychain entry and reconnect."
-                }
-            } else if let lastUser = UserDefaults.standard.string(forKey: "lastUsername") {
-                do {
-                    if let creds = try KeychainHelper.load(account: lastUser) {
-                        username = lastUser
-                        host = creds.host
-                        password = creds.password
-                    }
-                } catch {
-                    sftpService.errorMessage = "Load credentials failed for \(lastUser): \(error.localizedDescription). Suggested fix: remove the saved keychain entry and reconnect."
                 }
             }
         }

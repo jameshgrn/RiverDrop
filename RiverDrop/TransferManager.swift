@@ -63,30 +63,34 @@ final class TransferManager: ObservableObject {
             return
         }
 
+        let destinationPath = sftpService.currentPath
         let filename = localURL.lastPathComponent
-        // Check if remote file exists
-        if sftpService.files.contains(where: { $0.filename == filename && !$0.isDirectory }) {
-            let resolution = promptConflict(filename: filename, direction: "upload")
-            switch resolution {
-            case .cancel: return
-            case .rename:
-                let newName = uniqueRemoteName(for: filename)
-                uploadRenamed(localURL: localURL, remoteName: newName)
-                return
-            case .replace:
-                break // proceed with overwrite
+
+        Task {
+            // Check if remote file exists
+            if sftpService.files.contains(where: { $0.filename == filename && !$0.isDirectory }) {
+                let resolution = await promptConflict(filename: filename, direction: "upload")
+                switch resolution {
+                case .cancel: return
+                case .rename:
+                    let newName = uniqueRemoteName(for: filename)
+                    uploadRenamed(localURL: localURL, remoteName: newName, to: destinationPath)
+                    return
+                case .replace:
+                    break // proceed with overwrite
+                }
             }
+            doUpload(localURL: localURL, to: destinationPath)
         }
-        doUpload(localURL: localURL)
     }
 
-    private func uploadRenamed(localURL: URL, remoteName: String) {
+    private func uploadRenamed(localURL: URL, remoteName: String, to destinationPath: String) {
         let item = TransferItem(filename: remoteName, isUpload: true)
         transfers.insert(item, at: 0)
         let itemID = item.id
-        let remotePath = sftpService.currentPath.hasSuffix("/")
-            ? sftpService.currentPath + remoteName
-            : sftpService.currentPath + "/" + remoteName
+        let remotePath = destinationPath.hasSuffix("/")
+            ? destinationPath + remoteName
+            : destinationPath + "/" + remoteName
 
         Task {
             do {
@@ -109,14 +113,14 @@ final class TransferManager: ObservableObject {
         }
     }
 
-    private func doUpload(localURL: URL) {
+    private func doUpload(localURL: URL, to destinationPath: String) {
         let item = TransferItem(filename: localURL.lastPathComponent, isUpload: true)
         transfers.insert(item, at: 0)
         let itemID = item.id
 
         Task {
             do {
-                try await sftpService.uploadFile(localURL: localURL) { [weak self] progress in
+                try await sftpService.uploadFile(localURL: localURL, to: destinationPath) { [weak self] progress in
                     Task { @MainActor in
                         self?.updateProgress(id: itemID, progress: progress)
                     }
@@ -127,7 +131,7 @@ final class TransferManager: ObservableObject {
                 sftpService.errorMessage = transferFailureMessage(
                     operation: "upload",
                     source: localURL.path,
-                    destination: sftpService.currentPath,
+                    destination: destinationPath,
                     error: error,
                     suggestedFix: "check remote write permissions and available disk space"
                 )
@@ -138,61 +142,65 @@ final class TransferManager: ObservableObject {
     // MARK: - Download
 
     func downloadToDirectory(remoteFilename: String, size: UInt64, localDir: URL) {
-        var localURL = localDir.appendingPathComponent(remoteFilename)
+        Task {
+            var localURL = localDir.appendingPathComponent(remoteFilename)
 
-        if FileManager.default.fileExists(atPath: localURL.path) {
-            let resolution = promptConflict(filename: remoteFilename, direction: "download")
-            switch resolution {
-            case .cancel: return
-            case .rename:
-                localURL = uniqueLocalURL(for: localURL)
-            case .replace:
-                do {
-                    try FileManager.default.removeItem(at: localURL)
-                } catch {
-                    sftpService.errorMessage = transferFailureMessage(
-                        operation: "prepare download",
-                        source: localURL.path,
-                        destination: localDir.path,
-                        error: error,
-                        suggestedFix: "close applications using the file and verify write permission for the destination folder"
-                    )
-                    return
+            if FileManager.default.fileExists(atPath: localURL.path) {
+                let resolution = await promptConflict(filename: remoteFilename, direction: "download")
+                switch resolution {
+                case .cancel: return
+                case .rename:
+                    localURL = uniqueLocalURL(for: localURL)
+                case .replace:
+                    do {
+                        try FileManager.default.removeItem(at: localURL)
+                    } catch {
+                        sftpService.errorMessage = transferFailureMessage(
+                            operation: "prepare download",
+                            source: localURL.path,
+                            destination: localDir.path,
+                            error: error,
+                            suggestedFix: "close applications using the file and verify write permission for the destination folder"
+                        )
+                        return
+                    }
                 }
             }
-        }
 
-        let finalName = localURL.lastPathComponent
-        download(source: .filename(remoteFilename), size: size, to: localURL, notifyFilename: finalName)
+            let finalName = localURL.lastPathComponent
+            download(source: .filename(remoteFilename), size: size, to: localURL, notifyFilename: finalName)
+        }
     }
 
     func downloadRemotePathToDirectory(remotePath: String, filename: String, size: UInt64, localDir: URL) {
-        var localURL = localDir.appendingPathComponent(filename)
+        Task {
+            var localURL = localDir.appendingPathComponent(filename)
 
-        if FileManager.default.fileExists(atPath: localURL.path) {
-            let resolution = promptConflict(filename: filename, direction: "download")
-            switch resolution {
-            case .cancel: return
-            case .rename:
-                localURL = uniqueLocalURL(for: localURL)
-            case .replace:
-                do {
-                    try FileManager.default.removeItem(at: localURL)
-                } catch {
-                    sftpService.errorMessage = transferFailureMessage(
-                        operation: "prepare download",
-                        source: localURL.path,
-                        destination: localDir.path,
-                        error: error,
-                        suggestedFix: "close applications using the file and verify write permission for the destination folder"
-                    )
-                    return
+            if FileManager.default.fileExists(atPath: localURL.path) {
+                let resolution = await promptConflict(filename: filename, direction: "download")
+                switch resolution {
+                case .cancel: return
+                case .rename:
+                    localURL = uniqueLocalURL(for: localURL)
+                case .replace:
+                    do {
+                        try FileManager.default.removeItem(at: localURL)
+                    } catch {
+                        sftpService.errorMessage = transferFailureMessage(
+                            operation: "prepare download",
+                            source: localURL.path,
+                            destination: localDir.path,
+                            error: error,
+                            suggestedFix: "close applications using the file and verify write permission for the destination folder"
+                        )
+                        return
+                    }
                 }
             }
-        }
 
-        let finalName = localURL.lastPathComponent
-        download(source: .fullPath(remotePath), size: size, to: localURL, notifyFilename: finalName)
+            let finalName = localURL.lastPathComponent
+            download(source: .fullPath(remotePath), size: size, to: localURL, notifyFilename: finalName)
+        }
     }
 
     func download(remoteFilename: String, size: UInt64, to localURL: URL, notifyFilename: String? = nil) {
@@ -260,19 +268,32 @@ final class TransferManager: ObservableObject {
 
     // MARK: - Conflict Resolution
 
-    private func promptConflict(filename: String, direction: String) -> ConflictResolution {
-        let alert = NSAlert()
-        alert.messageText = "File already exists"
-        alert.informativeText = "\"\(filename)\" already exists at the \(direction) destination."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Replace")
-        alert.addButton(withTitle: "Rename")
-        alert.addButton(withTitle: "Cancel")
+    private func promptConflict(filename: String, direction: String) async -> ConflictResolution {
+        await withCheckedContinuation { continuation in
+            let alert = NSAlert()
+            alert.messageText = "File already exists"
+            alert.informativeText = "\"\(filename)\" already exists at the \(direction) destination."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Replace")
+            alert.addButton(withTitle: "Rename")
+            alert.addButton(withTitle: "Cancel")
 
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: return .replace
-        case .alertSecondButtonReturn: return .rename
-        default: return .cancel
+            if let window = NSApp.keyWindow {
+                alert.beginSheetModal(for: window) { response in
+                    switch response {
+                    case .alertFirstButtonReturn: continuation.resume(returning: .replace)
+                    case .alertSecondButtonReturn: continuation.resume(returning: .rename)
+                    default: continuation.resume(returning: .cancel)
+                    }
+                }
+            } else {
+                let response = alert.runModal()
+                switch response {
+                case .alertFirstButtonReturn: continuation.resume(returning: .replace)
+                case .alertSecondButtonReturn: continuation.resume(returning: .rename)
+                default: continuation.resume(returning: .cancel)
+                }
+            }
         }
     }
 

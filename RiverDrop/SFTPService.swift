@@ -110,22 +110,33 @@ final class SFTPService: ObservableObject {
         await listDirectory()
     }
 
+    func uploadFile(
+        localURL: URL,
+        to destinationPath: String,
+        progressHandler: @Sendable @escaping (Double) -> Void
+    ) async throws {
+        let remotePath = destinationPath.hasSuffix("/")
+            ? destinationPath + localURL.lastPathComponent
+            : destinationPath + "/" + localURL.lastPathComponent
+
+        try await session.uploadFile(localURL: localURL, remotePath: remotePath, progressHandler: progressHandler)
+        
+        if currentPath == destinationPath {
+            await listDirectory()
+        }
+    }
+
     func uploadFileToPath(
         localURL: URL,
         remotePath: String,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
         try await session.uploadFile(localURL: localURL, remotePath: remotePath, progressHandler: progressHandler)
-        await listDirectory()
-    }
-
-    func uploadFile(localURL: URL, progressHandler: @Sendable @escaping (Double) -> Void) async throws {
-        let remotePath = currentPath.hasSuffix("/")
-            ? currentPath + localURL.lastPathComponent
-            : currentPath + "/" + localURL.lastPathComponent
-
-        try await session.uploadFile(localURL: localURL, remotePath: remotePath, progressHandler: progressHandler)
-        await listDirectory()
+        
+        let destinationDir = (remotePath as NSString).deletingLastPathComponent
+        if currentPath == destinationDir || currentPath == remotePath {
+            await listDirectory()
+        }
     }
 
     func downloadFile(
@@ -255,7 +266,7 @@ private actor SFTPSession {
         guard let sftp = sftpClient else { throw SFTPError.notConnected }
 
         let fileHandle = try FileHandle(forReadingFrom: localURL)
-        defer { fileHandle.closeFile() }
+        defer { try? fileHandle.close() }
 
         let attrs = try FileManager.default.attributesOfItem(atPath: localURL.path)
         let totalSize = (attrs[.size] as? UInt64) ?? 0
@@ -291,7 +302,7 @@ private actor SFTPSession {
         }
 
         let fileHandle = try FileHandle(forWritingTo: localURL)
-        defer { fileHandle.closeFile() }
+        defer { try? fileHandle.close() }
 
         try await sftp.withFile(filePath: remotePath, flags: .read) { remoteFile in
             var offset: UInt64 = 0

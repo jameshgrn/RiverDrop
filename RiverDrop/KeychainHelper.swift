@@ -4,12 +4,17 @@ import Security
 enum KeychainHelper {
     private static let service = "com.riverdrop.sftp"
 
-    static func save(account: String, host: String, password: String) throws {
+    struct KeychainPayload: Codable {
+        let host: String
+        let password: String
+    }
+
+    static func save(username: String, host: String, password: String) throws {
+        let account = "\(username.lowercased())@\(host.lowercased())"
         try delete(account: account)
-        let payload = "\(host)\n\(password)"
-        guard let data = payload.data(using: .utf8) else {
-            throw KeychainError.payloadEncodingFailed
-        }
+
+        let payload = KeychainPayload(host: host, password: password)
+        let data = try JSONEncoder().encode(payload)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -24,7 +29,8 @@ enum KeychainHelper {
         }
     }
 
-    static func load(account: String) throws -> (host: String, password: String)? {
+    static func load(username: String, host: String) throws -> String? {
+        let account = "\(username.lowercased())@\(host.lowercased())"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -42,18 +48,16 @@ enum KeychainHelper {
             throw KeychainError.unexpectedStatus(operation: "load credentials", status: status)
         }
 
-        guard let data = result as? Data,
-              let payload = String(data: data, encoding: .utf8)
-        else {
+        guard let data = result as? Data else {
             throw KeychainError.invalidPayload(account: account)
         }
 
-        let parts = payload.split(separator: "\n", maxSplits: 1)
-        guard parts.count == 2 else {
+        do {
+            let payload = try JSONDecoder().decode(KeychainPayload.self, from: data)
+            return payload.password
+        } catch {
             throw KeychainError.invalidPayload(account: account)
         }
-
-        return (host: String(parts[0]), password: String(parts[1]))
     }
 
     static func delete(account: String) throws {
