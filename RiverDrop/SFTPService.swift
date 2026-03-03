@@ -8,6 +8,7 @@ import NIOSSH
 final class SFTPService: ObservableObject {
     @Published var isConnected = false
     @Published var connectedUsername = ""
+    @Published var connectedHost = ""
     @Published var homePath = ""
     @Published var currentPath = ""
     @Published var files: [RemoteFileItem] = []
@@ -32,6 +33,7 @@ final class SFTPService: ObservableObject {
             }
 
             connectedUsername = username
+            connectedHost = host
             homePath = resolvedHome
             currentPath = resolvedHome
             isConnected = true
@@ -40,6 +42,7 @@ final class SFTPService: ObservableObject {
         } catch {
             isConnected = false
             connectedUsername = ""
+            connectedHost = ""
             homePath = ""
             currentPath = ""
             files = []
@@ -66,6 +69,7 @@ final class SFTPService: ObservableObject {
 
         isConnected = false
         connectedUsername = ""
+        connectedHost = ""
         homePath = ""
         files = []
         currentPath = ""
@@ -273,9 +277,11 @@ private actor SFTPSession {
 
         try await sftp.withFile(filePath: remotePath, flags: [.write, .create, .truncate]) { remoteFile in
             var offset: UInt64 = 0
-            let chunkSize = 32_768
+            let chunkSize = 1_048_576 // 1 MB
+            var lastReportedProgress = -1.0
 
             while true {
+                try Task.checkCancellation()
                 let data = try fileHandle.read(upToCount: chunkSize) ?? Data()
                 if data.isEmpty { break }
 
@@ -283,7 +289,11 @@ private actor SFTPSession {
                 offset += UInt64(data.count)
 
                 if totalSize > 0 {
-                    progressHandler(Double(offset) / Double(totalSize))
+                    let progress = Double(offset) / Double(totalSize)
+                    if progress - lastReportedProgress >= 0.01 || progress >= 1.0 {
+                        lastReportedProgress = progress
+                        progressHandler(progress)
+                    }
                 }
             }
         }
@@ -306,9 +316,11 @@ private actor SFTPSession {
 
         try await sftp.withFile(filePath: remotePath, flags: .read) { remoteFile in
             var offset: UInt64 = 0
-            let chunkSize: UInt32 = 32_768
+            let chunkSize: UInt32 = 1_048_576 // 1 MB
+            var lastReportedProgress = -1.0
 
             while true {
+                try Task.checkCancellation()
                 let buffer = try await remoteFile.read(from: offset, length: chunkSize)
                 if buffer.readableBytes == 0 { break }
 
@@ -318,7 +330,11 @@ private actor SFTPSession {
 
                 offset += UInt64(buffer.readableBytes)
                 if size > 0 {
-                    progressHandler(Double(offset) / Double(size))
+                    let progress = Double(offset) / Double(size)
+                    if progress - lastReportedProgress >= 0.01 || progress >= 1.0 {
+                        lastReportedProgress = progress
+                        progressHandler(progress)
+                    }
                 }
             }
         }
@@ -360,7 +376,7 @@ private final class TOFUHostKeyValidator: NIOSSHClientServerAuthenticationDelega
             return
         }
 
-        _ = lock.withLock {
+        lock.withLock {
             acceptedKey = observedKey
         }
         validationCompletePromise.succeed(())

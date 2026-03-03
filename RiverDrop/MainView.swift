@@ -11,6 +11,48 @@ struct RemoteDragPayload: Codable {
     let size: UInt64
 }
 
+func fuzzyMatch(pattern: String, text: String) -> Int {
+    guard !pattern.isEmpty else { return 1 }
+    let pattern = pattern.lowercased()
+    let text = text.lowercased()
+
+    var patternIdx = pattern.startIndex
+    var score = 0
+    var lastMatchIndex: String.Index?
+    var consecutive = 0
+
+    for textIdx in text.indices {
+        guard patternIdx < pattern.endIndex else { break }
+        if text[textIdx] == pattern[patternIdx] {
+            score += 1
+
+            // Bonus for consecutive matches
+            if let last = lastMatchIndex, text.index(after: last) == textIdx {
+                consecutive += 1
+                score += consecutive
+            } else {
+                consecutive = 0
+            }
+
+            // Bonus for match at start or after separator
+            if textIdx == text.startIndex {
+                score += 3
+            } else {
+                let prev = text[text.index(before: textIdx)]
+                if prev == "." || prev == "_" || prev == "-" || prev == "/" || prev == " " {
+                    score += 2
+                }
+            }
+
+            lastMatchIndex = textIdx
+            patternIdx = pattern.index(after: patternIdx)
+        }
+    }
+
+    // All pattern characters must be matched
+    return patternIdx == pattern.endIndex ? score : 0
+}
+
 struct MainView: View {
     @EnvironmentObject var sftpService: SFTPService
     @EnvironmentObject var transferManager: TransferManager
@@ -20,10 +62,21 @@ struct MainView: View {
     @State private var remoteRoot = RemoteRoot.home
     @State private var recentlyDownloaded: Set<String> = []
     @State private var isRemoteDropTargeted = false
+    @State private var remoteSearchText = ""
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
         case notBackedUp = "Scratch"
+    }
+
+    private var filteredRemoteFiles: [RemoteFileItem] {
+        let query = remoteSearchText.trimmingCharacters(in: .whitespaces)
+        if query.isEmpty { return sftpService.files }
+        return sftpService.files
+            .map { (file: $0, score: fuzzyMatch(pattern: query, text: $0.filename)) }
+            .filter { $0.score > 0 }
+            .sorted { $0.score > $1.score }
+            .map(\.file)
     }
 
     var body: some View {
@@ -70,11 +123,15 @@ struct MainView: View {
             remotePathBar
             Divider()
 
-            if sftpService.files.isEmpty {
-                ContentUnavailableView("Empty Directory", systemImage: "folder")
+            if filteredRemoteFiles.isEmpty {
+                if remoteSearchText.isEmpty {
+                    ContentUnavailableView("Empty Directory", systemImage: "folder")
+                } else {
+                    ContentUnavailableView("No matches", systemImage: "magnifyingglass")
+                }
             } else {
                 List {
-                    ForEach(sftpService.files) { file in
+                    ForEach(filteredRemoteFiles) { file in
                         if file.isDirectory {
                             remoteFolderRow(file)
                         } else {
@@ -125,6 +182,10 @@ struct MainView: View {
                 Task { await navigateRemoteTo(pathForRoot(newValue)) }
             }
 
+            TextField("Filter...", text: $remoteSearchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 140)
+
             Spacer()
 
             if !remoteSelectedIDs.isEmpty {
@@ -143,7 +204,7 @@ struct MainView: View {
             }
             .disabled(selectedRemoteFiles.isEmpty)
 
-            Text("\(sftpService.files.count) items")
+            Text("\(filteredRemoteFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -208,12 +269,14 @@ struct MainView: View {
         sftpService.currentPath = path
         await sftpService.listDirectory()
         remoteSelectedIDs = []
+        remoteSearchText = ""
     }
 
     private func remoteFolderRow(_ file: RemoteFileItem) -> some View {
         Button {
             Task { await sftpService.navigateTo(file.filename) }
             remoteSelectedIDs = []
+            remoteSearchText = ""
         } label: {
             HStack {
                 Image(systemName: "folder.fill")
@@ -310,6 +373,14 @@ struct MainView: View {
                                 .font(.caption)
                                 .monospacedDigit()
                                 .frame(width: 36, alignment: .trailing)
+                            Button {
+                                transferManager.cancelTransfer(id: item.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Cancel transfer")
                         } else {
                             Text(item.status.rawValue)
                                 .font(.caption)
@@ -423,6 +494,8 @@ struct MainView: View {
             return .secondary
         case .inProgress:
             return .primary
+        case .cancelled:
+            return .orange
         }
     }
 }

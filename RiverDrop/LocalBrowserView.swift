@@ -12,6 +12,10 @@ struct LocalBrowserView: View {
     @State private var isDropTargeted = false
     @State private var hasRequestedAccess = false
     @State private var activeSecurityScopedURL: URL?
+    @State private var searchText = ""
+    @State private var showContentSearch = false
+    @State private var contentSearchQuery = ""
+    @StateObject private var ripgrepSearch = RipgrepSearch()
 
     private static let bookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -19,12 +23,26 @@ struct LocalBrowserView: View {
         ("Cluster Scratch", "/not_backed_up/\(NSUserName())"),
     ]
 
+    private var filteredFiles: [LocalFileItem] {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        if query.isEmpty { return files }
+        return files
+            .map { (file: $0, score: fuzzyMatch(pattern: query, text: $0.filename)) }
+            .filter { $0.score > 0 }
+            .sorted { $0.score > $1.score }
+            .map(\.file)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
             Divider()
             pathBar
             Divider()
+            if showContentSearch {
+                contentSearchPanel
+                Divider()
+            }
             fileList
         }
         .overlay(
@@ -85,6 +103,21 @@ struct LocalBrowserView: View {
             .fixedSize()
             .help("Bookmarks")
 
+            TextField("Filter...", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 140)
+
+            Button {
+                showContentSearch.toggle()
+                if !showContentSearch {
+                    ripgrepSearch.cancel()
+                }
+            } label: {
+                Image(systemName: "doc.text.magnifyingglass")
+            }
+            .help(RipgrepSearch.isAvailable ? "Content search (rg)" : "ripgrep not installed")
+            .disabled(!RipgrepSearch.isAvailable)
+
             Spacer()
 
             if !recentlyDownloaded.isEmpty {
@@ -109,12 +142,94 @@ struct LocalBrowserView: View {
             }
             .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
 
-            Text("\(files.count) items")
+            Text("\(filteredFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+
+    // MARK: - Content Search Panel
+
+    private var contentSearchPanel: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField("Search file contents...", text: $contentSearchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        guard !contentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        ripgrepSearch.search(query: contentSearchQuery, in: localCurrentDirectory.path)
+                    }
+
+                if ripgrepSearch.isSearching {
+                    Button {
+                        ripgrepSearch.cancel()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button {
+                        guard !contentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        ripgrepSearch.search(query: contentSearchQuery, in: localCurrentDirectory.path)
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+
+            if let error = ripgrepSearch.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+            }
+
+            if ripgrepSearch.isSearching {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Searching...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+            }
+
+            if !ripgrepSearch.results.isEmpty {
+                List(ripgrepSearch.results) { result in
+                    Button {
+                        navigateTo(result.directoryURL)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(result.filePath)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            HStack(spacing: 4) {
+                                Text("L\(result.lineNumber)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .monospacedDigit()
+                                Text(result.content)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.inset)
+                .frame(maxHeight: 200)
+            }
+        }
+        .padding(.bottom, 4)
     }
 
     // MARK: - Path Bar
@@ -146,11 +261,15 @@ struct LocalBrowserView: View {
 
     private var fileList: some View {
         Group {
-            if files.isEmpty {
-                ContentUnavailableView("Empty Directory", systemImage: "folder")
+            if filteredFiles.isEmpty {
+                if searchText.isEmpty {
+                    ContentUnavailableView("Empty Directory", systemImage: "folder")
+                } else {
+                    ContentUnavailableView("No matches", systemImage: "magnifyingglass")
+                }
             } else {
                 List {
-                    ForEach(files) { file in
+                    ForEach(filteredFiles) { file in
                         if file.isDirectory {
                             folderRow(file)
                         } else {
@@ -254,6 +373,7 @@ struct LocalBrowserView: View {
         localCurrentDirectory = url.standardizedFileURL
         selectedIDs = []
         recentlyDownloaded = []
+        searchText = ""
         loadDirectory()
     }
 
@@ -525,5 +645,4 @@ struct LocalBrowserView: View {
         }
         return nil
     }
-
 }
