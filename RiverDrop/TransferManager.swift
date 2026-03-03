@@ -13,12 +13,15 @@ struct TransferItem: Identifiable {
         case completed = "Completed"
         case failed = "Failed"
         case skipped = "Skipped"
+        case cancelled = "Cancelled"
     }
 }
 
 enum ConflictResolution {
     case replace, rename, cancel
 }
+
+private let rsyncThreshold: UInt64 = 100 * 1024 * 1024 // 100 MB
 
 @MainActor
 final class TransferManager: ObservableObject {
@@ -27,6 +30,9 @@ final class TransferManager: ObservableObject {
     var onDownloadCompleted: ((String) -> Void)?
 
     private let sftpService: SFTPService
+    private var activeTasks: [UUID: Task<Void, Never>] = [:]
+    private var activeRsyncs: [UUID: RsyncTransfer] = [:]
+
     private enum RemoteDownloadSource {
         case filename(String)
         case fullPath(String)
@@ -34,6 +40,18 @@ final class TransferManager: ObservableObject {
 
     init(sftpService: SFTPService) {
         self.sftpService = sftpService
+    }
+
+    // MARK: - Cancel
+
+    func cancelTransfer(id: UUID) {
+        activeRsyncs[id]?.cancel()
+        activeRsyncs[id] = nil
+
+        activeTasks[id]?.cancel()
+        activeTasks[id] = nil
+
+        updateStatus(id: id, status: .cancelled)
     }
 
     // MARK: - Upload
@@ -67,7 +85,6 @@ final class TransferManager: ObservableObject {
         let filename = localURL.lastPathComponent
 
         Task {
-            // Check if remote file exists
             if sftpService.files.contains(where: { $0.filename == filename && !$0.isDirectory }) {
                 let resolution = await promptConflict(filename: filename, direction: "upload")
                 switch resolution {
@@ -77,7 +94,7 @@ final class TransferManager: ObservableObject {
                     uploadRenamed(localURL: localURL, remoteName: newName, to: destinationPath)
                     return
                 case .replace:
-                    break // proceed with overwrite
+                    break
                 }
             }
             doUpload(localURL: localURL, to: destinationPath)
@@ -92,7 +109,7 @@ final class TransferManager: ObservableObject {
             ? destinationPath + remoteName
             : destinationPath + "/" + remoteName
 
-        Task {
+        let task = Task {
             do {
                 try await sftpService.uploadFileToPath(localURL: localURL, remotePath: remotePath) { [weak self] progress in
                     Task { @MainActor in
@@ -100,6 +117,8 @@ final class TransferManager: ObservableObject {
                     }
                 }
                 updateStatus(id: itemID, status: .completed)
+            } catch is CancellationError {
+                updateStatus(id: itemID, status: .cancelled)
             } catch {
                 updateStatus(id: itemID, status: .failed)
                 sftpService.errorMessage = transferFailureMessage(
@@ -110,7 +129,9 @@ final class TransferManager: ObservableObject {
                     suggestedFix: "check remote write permissions and available disk space"
                 )
             }
+            cleanupTask(id: itemID)
         }
+        activeTasks[itemID] = task
     }
 
     private func doUpload(localURL: URL, to destinationPath: String) {
@@ -118,7 +139,48 @@ final class TransferManager: ObservableObject {
         transfers.insert(item, at: 0)
         let itemID = item.id
 
-        Task {
+        let fileSize = fileSize(at: localURL)
+        let useRsync = fileSize >= rsyncThreshold && RsyncTransfer.isAvailable && retrievePassword() != nil
+
+        let task = Task {
+            if useRsync {
+                let rsync = RsyncTransfer()
+                activeRsyncs[itemID] = rsync
+
+                let remotePath = destinationPath.hasSuffix("/")
+                    ? destinationPath + localURL.lastPathComponent
+                    : destinationPath + "/" + localURL.lastPathComponent
+
+                do {
+                    try await rsync.upload(
+                        localPath: localURL.path,
+                        remotePath: remotePath,
+                        host: sftpService.connectedHost,
+                        username: sftpService.connectedUsername,
+                        password: retrievePassword()!
+                    ) { [weak self] progress in
+                        Task { @MainActor in
+                            self?.updateProgress(id: itemID, progress: progress)
+                        }
+                    }
+                    updateStatus(id: itemID, status: .completed)
+                    if sftpService.currentPath == destinationPath {
+                        await sftpService.listDirectory()
+                    }
+                    cleanupTask(id: itemID)
+                    return
+                } catch is CancellationError {
+                    updateStatus(id: itemID, status: .cancelled)
+                    cleanupTask(id: itemID)
+                    return
+                } catch {
+                    // rsync failed — fall back to SFTP
+                    activeRsyncs[itemID] = nil
+                    updateProgress(id: itemID, progress: 0)
+                }
+            }
+
+            // SFTP path
             do {
                 try await sftpService.uploadFile(localURL: localURL, to: destinationPath) { [weak self] progress in
                     Task { @MainActor in
@@ -126,6 +188,8 @@ final class TransferManager: ObservableObject {
                     }
                 }
                 updateStatus(id: itemID, status: .completed)
+            } catch is CancellationError {
+                updateStatus(id: itemID, status: .cancelled)
             } catch {
                 updateStatus(id: itemID, status: .failed)
                 sftpService.errorMessage = transferFailureMessage(
@@ -136,7 +200,9 @@ final class TransferManager: ObservableObject {
                     suggestedFix: "check remote write permissions and available disk space"
                 )
             }
+            cleanupTask(id: itemID)
         }
+        activeTasks[itemID] = task
     }
 
     // MARK: - Download
@@ -210,13 +276,18 @@ final class TransferManager: ObservableObject {
     private func download(source: RemoteDownloadSource, size: UInt64, to localURL: URL, notifyFilename: String? = nil) {
         let sourceLabel: String
         let defaultDisplayName: String
+        let fullRemotePath: String
         switch source {
         case let .filename(name):
             sourceLabel = name
             defaultDisplayName = name
+            fullRemotePath = sftpService.currentPath.hasSuffix("/")
+                ? sftpService.currentPath + name
+                : sftpService.currentPath + "/" + name
         case let .fullPath(path):
             sourceLabel = path
             defaultDisplayName = (path as NSString).lastPathComponent
+            fullRemotePath = path
         }
 
         let displayName = notifyFilename ?? defaultDisplayName
@@ -224,7 +295,45 @@ final class TransferManager: ObservableObject {
         transfers.insert(item, at: 0)
         let itemID = item.id
 
-        Task {
+        let useRsync = size >= rsyncThreshold && RsyncTransfer.isAvailable && retrievePassword() != nil
+
+        let task = Task {
+            if useRsync {
+                let rsync = RsyncTransfer()
+                activeRsyncs[itemID] = rsync
+
+                do {
+                    try await rsync.download(
+                        remotePath: fullRemotePath,
+                        localPath: localURL.path,
+                        host: sftpService.connectedHost,
+                        username: sftpService.connectedUsername,
+                        password: retrievePassword()!
+                    ) { [weak self] progress in
+                        Task { @MainActor in
+                            self?.updateProgress(id: itemID, progress: progress)
+                        }
+                    }
+                    updateStatus(id: itemID, status: .completed)
+                    if let name = notifyFilename {
+                        onDownloadCompleted?(name)
+                    }
+                    cleanupTask(id: itemID)
+                    return
+                } catch is CancellationError {
+                    updateStatus(id: itemID, status: .cancelled)
+                    cleanupTask(id: itemID)
+                    return
+                } catch {
+                    // rsync failed — fall back to SFTP
+                    activeRsyncs[itemID] = nil
+                    updateProgress(id: itemID, progress: 0)
+                    // Clean up partial download
+                    try? FileManager.default.removeItem(at: localURL)
+                }
+            }
+
+            // SFTP path
             do {
                 switch source {
                 case let .filename(remoteFilename):
@@ -253,6 +362,8 @@ final class TransferManager: ObservableObject {
                 if let name = notifyFilename {
                     onDownloadCompleted?(name)
                 }
+            } catch is CancellationError {
+                updateStatus(id: itemID, status: .cancelled)
             } catch {
                 updateStatus(id: itemID, status: .failed)
                 sftpService.errorMessage = transferFailureMessage(
@@ -263,7 +374,28 @@ final class TransferManager: ObservableObject {
                     suggestedFix: "check local write permissions and confirm the remote file still exists"
                 )
             }
+            cleanupTask(id: itemID)
         }
+        activeTasks[itemID] = task
+    }
+
+    // MARK: - Rsync Helpers
+
+    private func retrievePassword() -> String? {
+        let host = sftpService.connectedHost
+        let username = sftpService.connectedUsername
+        guard !host.isEmpty, !username.isEmpty else { return nil }
+        return try? KeychainHelper.load(username: username, host: host)
+    }
+
+    private func fileSize(at url: URL) -> UInt64 {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        return (attrs?[.size] as? UInt64) ?? 0
+    }
+
+    private func cleanupTask(id: UUID) {
+        activeTasks[id] = nil
+        activeRsyncs[id] = nil
     }
 
     // MARK: - Conflict Resolution

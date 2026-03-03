@@ -16,6 +16,8 @@
 		AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */; };
 		B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */; };
 		C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */; };
+		D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */; };
+		E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */; };
 		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
 /* End PBXBuildFile section */
 
@@ -30,6 +32,8 @@
 		475DC44F97CE166D9CB71385 /* RiverDropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiverDropApp.swift; sourceTree = "<group>"; };
 		A0880142BC3495737E61F70D /* RiverDrop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RiverDrop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7584E43BAC720FCB206A8B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RipgrepSearch.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
 		F92F4E94228FEDA36172E00B /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -62,8 +66,10 @@
 				D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */,
 				C7584E43BAC720FCB206A8B4 /* MainView.swift */,
 				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
+				A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */,
 				178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */,
 				475DC44F97CE166D9CB71385 /* RiverDropApp.swift */,
+				B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */,
 				12B074F1E942FFDA1B37584C /* SFTPService.swift */,
 				19E8753DBA408E9165BECC22 /* TransferManager.swift */,
 			);
@@ -147,7 +153,9 @@
 				B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */,
 				5D738D461AD957016FF547F5 /* MainView.swift in Sources */,
 				AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */,
+				D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */,
 				98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */,
+				E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */,
 				892BA864188D054CBA8A031C /* SFTPService.swift in Sources */,
 				59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */,
 			);
