@@ -1,0 +1,30 @@
+name: RiverDrop
+options:
+  bundleIdPrefix: com.riverdrop
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  Citadel:
+    url: https://github.com/orlandos-nl/Citadel.git
+    from: "0.11.1"
+
+targets:
+  RiverDrop:
+    type: application
+    platform: macOS
+    sources:
+      - RiverDrop
+    dependencies:
+      - package: Citadel
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: RiverDrop/RiverDrop.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.10"
+        PRODUCT_BUNDLE_IDENTIFIER: com.riverdrop.app
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        GENERATE_INFOPLIST_FILE: YES

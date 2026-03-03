@@ -1,0 +1,361 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E55F09D483C9B50F4EB55B /* ConnectionView.swift */; };
+		59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E8753DBA408E9165BECC22 /* TransferManager.swift */; };
+		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
+		6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92F4E94228FEDA36172E00B /* KeychainHelper.swift */; };
+		892BA864188D054CBA8A031C /* SFTPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B074F1E942FFDA1B37584C /* SFTPService.swift */; };
+		98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 475DC44F97CE166D9CB71385 /* RiverDropApp.swift */; };
+		AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */; };
+		B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */; };
+		C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */; };
+		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFileItem.swift; sourceTree = "<group>"; };
+		12B074F1E942FFDA1B37584C /* SFTPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFTPService.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
+		E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrowserView.swift; sourceTree = "<group>"; };
+		178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RiverDrop.entitlements; sourceTree = "<group>"; };
+		19E8753DBA408E9165BECC22 /* TransferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferManager.swift; sourceTree = "<group>"; };
+		43E55F09D483C9B50F4EB55B /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
+		475DC44F97CE166D9CB71385 /* RiverDropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiverDropApp.swift; sourceTree = "<group>"; };
+		A0880142BC3495737E61F70D /* RiverDrop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RiverDrop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C7584E43BAC720FCB206A8B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		F92F4E94228FEDA36172E00B /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		02B242CE2D1A68409FC1A67C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C60DC17B82A7B0133179D256 /* Citadel in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0DED79C6FB0DB174A33D5BAE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A0880142BC3495737E61F70D /* RiverDrop.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BD9941B6E99A010F5621E78E /* RiverDrop */ = {
+			isa = PBXGroup;
+			children = (
+				43E55F09D483C9B50F4EB55B /* ConnectionView.swift */,
+				F92F4E94228FEDA36172E00B /* KeychainHelper.swift */,
+				E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */,
+				D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */,
+				C7584E43BAC720FCB206A8B4 /* MainView.swift */,
+				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
+				178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */,
+				475DC44F97CE166D9CB71385 /* RiverDropApp.swift */,
+				12B074F1E942FFDA1B37584C /* SFTPService.swift */,
+				19E8753DBA408E9165BECC22 /* TransferManager.swift */,
+			);
+			path = RiverDrop;
+			sourceTree = "<group>";
+		};
+		DCF90CD690E40C63FD53D458 = {
+			isa = PBXGroup;
+			children = (
+				BD9941B6E99A010F5621E78E /* RiverDrop */,
+				0DED79C6FB0DB174A33D5BAE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AB73A47AC5692C1A99F049D3 /* RiverDrop */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C6F567D05CB2A3DB4C88B7C4 /* Build configuration list for PBXNativeTarget "RiverDrop" */;
+			buildPhases = (
+				0FD60DEA81C6986AE2E8E2CC /* Sources */,
+				02B242CE2D1A68409FC1A67C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RiverDrop;
+			packageProductDependencies = (
+				2B6DAD37A360FA7318560AC2 /* Citadel */,
+			);
+			productName = RiverDrop;
+			productReference = A0880142BC3495737E61F70D /* RiverDrop.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		086DD072F713A10D2D19F032 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					AB73A47AC5692C1A99F049D3 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = FC9317DA5499C4EB4669A5BD /* Build configuration list for PBXProject "RiverDrop" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = DCF90CD690E40C63FD53D458;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				ED26CC88E0657C155398187A /* XCRemoteSwiftPackageReference "Citadel" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AB73A47AC5692C1A99F049D3 /* RiverDrop */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0FD60DEA81C6986AE2E8E2CC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */,
+				6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */,
+				C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */,
+				B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */,
+				5D738D461AD957016FF547F5 /* MainView.swift in Sources */,
+				AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */,
+				98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */,
+				892BA864188D054CBA8A031C /* SFTPService.swift in Sources */,
+				59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		307F54D49AAC8FE73C7A90EC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9A0C8FC0499EE9BB084C9249 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = RiverDrop/RiverDrop.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.riverdrop.app;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		A8D6C162D4D050A447E5F773 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B5424EE806F7B4DB171E8891 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = RiverDrop/RiverDrop.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.riverdrop.app;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C6F567D05CB2A3DB4C88B7C4 /* Build configuration list for PBXNativeTarget "RiverDrop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5424EE806F7B4DB171E8891 /* Debug */,
+				9A0C8FC0499EE9BB084C9249 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FC9317DA5499C4EB4669A5BD /* Build configuration list for PBXProject "RiverDrop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				307F54D49AAC8FE73C7A90EC /* Debug */,
+				A8D6C162D4D050A447E5F773 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		ED26CC88E0657C155398187A /* XCRemoteSwiftPackageReference "Citadel" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/orlandos-nl/Citadel.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.11.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2B6DAD37A360FA7318560AC2 /* Citadel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = ED26CC88E0657C155398187A /* XCRemoteSwiftPackageReference "Citadel" */;
+			productName = Citadel;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 086DD072F713A10D2D19F032 /* Project object */;
+}
