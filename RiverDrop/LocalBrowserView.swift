@@ -26,11 +26,20 @@ struct LocalBrowserView: View {
     private var filteredFiles: [LocalFileItem] {
         let query = searchText.trimmingCharacters(in: .whitespaces)
         if query.isEmpty { return files }
-        return files
+
+        let scored = files
             .map { (file: $0, score: fuzzyMatch(pattern: query, text: $0.filename)) }
-            .filter { $0.score > 0 }
+
+        let fuzzyHits = scored.filter { $0.score > 0 }
             .sorted { $0.score > $1.score }
             .map(\.file)
+        if !fuzzyHits.isEmpty { return fuzzyHits }
+
+        // Fallback: substring match so the list never goes blank unexpectedly
+        let lower = query.lowercased()
+        let substringHits = files
+            .filter { $0.filename.lowercased().contains(lower) }
+        return substringHits
     }
 
     var body: some View {

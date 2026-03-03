@@ -72,11 +72,20 @@ struct MainView: View {
     private var filteredRemoteFiles: [RemoteFileItem] {
         let query = remoteSearchText.trimmingCharacters(in: .whitespaces)
         if query.isEmpty { return sftpService.files }
-        return sftpService.files
+
+        let scored = sftpService.files
             .map { (file: $0, score: fuzzyMatch(pattern: query, text: $0.filename)) }
-            .filter { $0.score > 0 }
+
+        let fuzzyHits = scored.filter { $0.score > 0 }
             .sorted { $0.score > $1.score }
             .map(\.file)
+        if !fuzzyHits.isEmpty { return fuzzyHits }
+
+        // Fallback: substring match so the list never goes blank unexpectedly
+        let lower = query.lowercased()
+        let substringHits = sftpService.files
+            .filter { $0.filename.lowercased().contains(lower) }
+        return substringHits
     }
 
     var body: some View {
