@@ -213,6 +213,15 @@ struct MainView: View {
             }
             .disabled(selectedRemoteFiles.isEmpty)
 
+            Button {
+                copyRemotePathToClipboard()
+            } label: {
+                Label("Copy Path", systemImage: "doc.badge.plus")
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .help("Copy current remote directory path to clipboard")
+
             Text("\(filteredRemoteFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -506,5 +515,13 @@ struct MainView: View {
         case .cancelled:
             return .orange
         }
+    }
+
+    // MARK: - Clipboard
+
+    private func copyRemotePathToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(sftpService.currentPath, forType: .string)
     }
 }

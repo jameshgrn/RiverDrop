@@ -151,6 +151,15 @@ struct LocalBrowserView: View {
             }
             .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
 
+            Button {
+                copyLocalPathToClipboard()
+            } label: {
+                Label("Copy Path", systemImage: "doc.badge.plus")
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .help("Copy current directory path to clipboard")
+
             Text("\(filteredFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -653,5 +662,13 @@ struct LocalBrowserView: View {
             return url.standardizedFileURL
         }
         return nil
+    }
+
+    // MARK: - Clipboard
+
+    private func copyLocalPathToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(localCurrentDirectory.path, forType: .string)
     }
 }
