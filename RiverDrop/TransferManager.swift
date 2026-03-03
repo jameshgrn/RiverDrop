@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OSLog
 
 struct TransferItem: Identifiable {
     let id = UUID()
@@ -21,7 +22,7 @@ enum ConflictResolution {
     case replace, rename, cancel
 }
 
-private let rsyncThreshold: UInt64 = 100 * 1024 * 1024 // 100 MB
+private let transferLogger = Logger(subsystem: "com.riverdrop.app", category: "transfer")
 
 @MainActor
 final class TransferManager: ObservableObject {
@@ -105,11 +106,21 @@ final class TransferManager: ObservableObject {
         let item = TransferItem(filename: remoteName, isUpload: true)
         transfers.insert(item, at: 0)
         let itemID = item.id
+        let transferSize = localFileSize(at: localURL)
         let remotePath = destinationPath.hasSuffix("/")
             ? destinationPath + remoteName
             : destinationPath + "/" + remoteName
 
         let task = Task {
+            let transferStart = Date()
+            logTransferStart(
+                id: itemID,
+                direction: "upload",
+                mode: "sftp",
+                source: localURL.path,
+                destination: remotePath,
+                bytes: transferSize
+            )
             do {
                 try await sftpService.uploadFileToPath(localURL: localURL, remotePath: remotePath) { [weak self] progress in
                     Task { @MainActor in
@@ -117,8 +128,22 @@ final class TransferManager: ObservableObject {
                     }
                 }
                 updateStatus(id: itemID, status: .completed)
+                logTransferCompleted(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: transferStart
+                )
             } catch is CancellationError {
                 updateStatus(id: itemID, status: .cancelled)
+                logTransferCancelled(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: transferStart
+                )
             } catch {
                 updateStatus(id: itemID, status: .failed)
                 sftpService.errorMessage = transferFailureMessage(
@@ -127,6 +152,14 @@ final class TransferManager: ObservableObject {
                     destination: remotePath,
                     error: error,
                     suggestedFix: "check remote write permissions and available disk space"
+                )
+                logTransferFailed(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: transferStart,
+                    error: error
                 )
             }
             cleanupTask(id: itemID)
@@ -138,18 +171,27 @@ final class TransferManager: ObservableObject {
         let item = TransferItem(filename: localURL.lastPathComponent, isUpload: true)
         transfers.insert(item, at: 0)
         let itemID = item.id
+        let transferSize = localFileSize(at: localURL)
+        let remotePath = destinationPath.hasSuffix("/")
+            ? destinationPath + localURL.lastPathComponent
+            : destinationPath + "/" + localURL.lastPathComponent
 
-        let fileSize = fileSize(at: localURL)
-        let useRsync = fileSize >= rsyncThreshold && RsyncTransfer.isAvailable && retrievePassword() != nil
+        let rsyncPassword = retrievePassword()
+        let useRsync = RsyncTransfer.isAvailable && rsyncPassword != nil
 
         let task = Task {
-            if useRsync {
+            if useRsync, let rsyncPassword {
                 let rsync = RsyncTransfer()
                 activeRsyncs[itemID] = rsync
-
-                let remotePath = destinationPath.hasSuffix("/")
-                    ? destinationPath + localURL.lastPathComponent
-                    : destinationPath + "/" + localURL.lastPathComponent
+                let rsyncStart = Date()
+                logTransferStart(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "rsync",
+                    source: localURL.path,
+                    destination: remotePath,
+                    bytes: transferSize
+                )
 
                 do {
                     try await rsync.upload(
@@ -157,13 +199,20 @@ final class TransferManager: ObservableObject {
                         remotePath: remotePath,
                         host: sftpService.connectedHost,
                         username: sftpService.connectedUsername,
-                        password: retrievePassword()!
+                        password: rsyncPassword
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
                         }
                     }
                     updateStatus(id: itemID, status: .completed)
+                    logTransferCompleted(
+                        id: itemID,
+                        direction: "upload",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart
+                    )
                     if sftpService.currentPath == destinationPath {
                         await sftpService.listDirectory()
                     }
@@ -171,16 +220,41 @@ final class TransferManager: ObservableObject {
                     return
                 } catch is CancellationError {
                     updateStatus(id: itemID, status: .cancelled)
+                    logTransferCancelled(
+                        id: itemID,
+                        direction: "upload",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart
+                    )
                     cleanupTask(id: itemID)
                     return
                 } catch {
                     // rsync failed — fall back to SFTP
                     activeRsyncs[itemID] = nil
                     updateProgress(id: itemID, progress: 0)
+                    logTransferFailed(
+                        id: itemID,
+                        direction: "upload",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart,
+                        error: error
+                    )
+                    transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
                 }
             }
 
             // SFTP path
+            let sftpStart = Date()
+            logTransferStart(
+                id: itemID,
+                direction: "upload",
+                mode: "sftp",
+                source: localURL.path,
+                destination: remotePath,
+                bytes: transferSize
+            )
             do {
                 try await sftpService.uploadFile(localURL: localURL, to: destinationPath) { [weak self] progress in
                     Task { @MainActor in
@@ -188,8 +262,22 @@ final class TransferManager: ObservableObject {
                     }
                 }
                 updateStatus(id: itemID, status: .completed)
+                logTransferCompleted(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: sftpStart
+                )
             } catch is CancellationError {
                 updateStatus(id: itemID, status: .cancelled)
+                logTransferCancelled(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: sftpStart
+                )
             } catch {
                 updateStatus(id: itemID, status: .failed)
                 sftpService.errorMessage = transferFailureMessage(
@@ -198,6 +286,14 @@ final class TransferManager: ObservableObject {
                     destination: destinationPath,
                     error: error,
                     suggestedFix: "check remote write permissions and available disk space"
+                )
+                logTransferFailed(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: sftpStart,
+                    error: error
                 )
             }
             cleanupTask(id: itemID)
@@ -294,13 +390,24 @@ final class TransferManager: ObservableObject {
         let item = TransferItem(filename: displayName, isUpload: false)
         transfers.insert(item, at: 0)
         let itemID = item.id
+        let transferSize = size
 
-        let useRsync = size >= rsyncThreshold && RsyncTransfer.isAvailable && retrievePassword() != nil
+        let rsyncPassword = retrievePassword()
+        let useRsync = RsyncTransfer.isAvailable && rsyncPassword != nil
 
         let task = Task {
-            if useRsync {
+            if useRsync, let rsyncPassword {
                 let rsync = RsyncTransfer()
                 activeRsyncs[itemID] = rsync
+                let rsyncStart = Date()
+                logTransferStart(
+                    id: itemID,
+                    direction: "download",
+                    mode: "rsync",
+                    source: sourceLabel,
+                    destination: localURL.path,
+                    bytes: transferSize
+                )
 
                 do {
                     try await rsync.download(
@@ -308,13 +415,20 @@ final class TransferManager: ObservableObject {
                         localPath: localURL.path,
                         host: sftpService.connectedHost,
                         username: sftpService.connectedUsername,
-                        password: retrievePassword()!
+                        password: rsyncPassword
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
                         }
                     }
                     updateStatus(id: itemID, status: .completed)
+                    logTransferCompleted(
+                        id: itemID,
+                        direction: "download",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart
+                    )
                     if let name = notifyFilename {
                         onDownloadCompleted?(name)
                     }
@@ -322,18 +436,43 @@ final class TransferManager: ObservableObject {
                     return
                 } catch is CancellationError {
                     updateStatus(id: itemID, status: .cancelled)
+                    logTransferCancelled(
+                        id: itemID,
+                        direction: "download",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart
+                    )
                     cleanupTask(id: itemID)
                     return
                 } catch {
                     // rsync failed — fall back to SFTP
                     activeRsyncs[itemID] = nil
                     updateProgress(id: itemID, progress: 0)
+                    logTransferFailed(
+                        id: itemID,
+                        direction: "download",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart,
+                        error: error
+                    )
+                    transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
                     // Clean up partial download
                     try? FileManager.default.removeItem(at: localURL)
                 }
             }
 
             // SFTP path
+            let sftpStart = Date()
+            logTransferStart(
+                id: itemID,
+                direction: "download",
+                mode: "sftp",
+                source: sourceLabel,
+                destination: localURL.path,
+                bytes: transferSize
+            )
             do {
                 switch source {
                 case let .filename(remoteFilename):
@@ -359,11 +498,25 @@ final class TransferManager: ObservableObject {
                 }
 
                 updateStatus(id: itemID, status: .completed)
+                logTransferCompleted(
+                    id: itemID,
+                    direction: "download",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: sftpStart
+                )
                 if let name = notifyFilename {
                     onDownloadCompleted?(name)
                 }
             } catch is CancellationError {
                 updateStatus(id: itemID, status: .cancelled)
+                logTransferCancelled(
+                    id: itemID,
+                    direction: "download",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: sftpStart
+                )
             } catch {
                 updateStatus(id: itemID, status: .failed)
                 sftpService.errorMessage = transferFailureMessage(
@@ -372,6 +525,14 @@ final class TransferManager: ObservableObject {
                     destination: localURL.path,
                     error: error,
                     suggestedFix: "check local write permissions and confirm the remote file still exists"
+                )
+                logTransferFailed(
+                    id: itemID,
+                    direction: "download",
+                    mode: "sftp",
+                    bytes: transferSize,
+                    startedAt: sftpStart,
+                    error: error
                 )
             }
             cleanupTask(id: itemID)
@@ -388,7 +549,7 @@ final class TransferManager: ObservableObject {
         return try? KeychainHelper.load(username: username, host: host)
     }
 
-    private func fileSize(at url: URL) -> UInt64 {
+    private func localFileSize(at url: URL) -> UInt64 {
         let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
         return (attrs?[.size] as? UInt64) ?? 0
     }
@@ -487,5 +648,59 @@ final class TransferManager: ObservableObject {
         suggestedFix: String
     ) -> String {
         "\(operation.capitalized) failed from \(source) to \(destination): \(error.localizedDescription). Suggested fix: \(suggestedFix)."
+    }
+
+    private func logTransferStart(
+        id: UUID,
+        direction: String,
+        mode: String,
+        source: String,
+        destination: String,
+        bytes: UInt64
+    ) {
+        transferLogger.info(
+            "Transfer start id=\(id.uuidString, privacy: .public) direction=\(direction, privacy: .public) mode=\(mode, privacy: .public) bytes=\(bytes) source=\(source, privacy: .public) destination=\(destination, privacy: .public)"
+        )
+    }
+
+    private func logTransferCompleted(
+        id: UUID,
+        direction: String,
+        mode: String,
+        bytes: UInt64,
+        startedAt: Date
+    ) {
+        let duration = max(Date().timeIntervalSince(startedAt), 0.001)
+        let rateMiBPerSecond = bytes == 0 ? 0 : (Double(bytes) / duration) / 1_048_576
+        transferLogger.info(
+            "Transfer completed id=\(id.uuidString, privacy: .public) direction=\(direction, privacy: .public) mode=\(mode, privacy: .public) duration_s=\(duration, format: .fixed(precision: 3)) rate_mib_s=\(rateMiBPerSecond, format: .fixed(precision: 2)) bytes=\(bytes)"
+        )
+    }
+
+    private func logTransferCancelled(
+        id: UUID,
+        direction: String,
+        mode: String,
+        bytes: UInt64,
+        startedAt: Date
+    ) {
+        let duration = max(Date().timeIntervalSince(startedAt), 0.001)
+        transferLogger.notice(
+            "Transfer cancelled id=\(id.uuidString, privacy: .public) direction=\(direction, privacy: .public) mode=\(mode, privacy: .public) duration_s=\(duration, format: .fixed(precision: 3)) bytes=\(bytes)"
+        )
+    }
+
+    private func logTransferFailed(
+        id: UUID,
+        direction: String,
+        mode: String,
+        bytes: UInt64,
+        startedAt: Date,
+        error: Error
+    ) {
+        let duration = max(Date().timeIntervalSince(startedAt), 0.001)
+        transferLogger.error(
+            "Transfer failed id=\(id.uuidString, privacy: .public) direction=\(direction, privacy: .public) mode=\(mode, privacy: .public) duration_s=\(duration, format: .fixed(precision: 3)) bytes=\(bytes) error=\(error.localizedDescription, privacy: .public)"
+        )
     }
 }

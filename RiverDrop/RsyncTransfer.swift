@@ -73,14 +73,18 @@ final class RsyncTransfer: @unchecked Sendable {
 
         let askpassScript = try createAskpassScript(password: password)
         defer { try? FileManager.default.removeItem(atPath: askpassScript) }
+        let knownHostsPath = try createKnownHostsFile(for: host)
+        defer { try? FileManager.default.removeItem(atPath: knownHostsPath) }
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: rsyncPath)
         proc.arguments = [
-            "-az",
-            "--info=progress2",
-            "--no-inc-recursive",
-            "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+            "-a",
+            "--whole-file",
+            "--inplace",
+            "--partial",
+            "--progress",
+            "-e", "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)",
             source,
             destination,
         ]
@@ -94,7 +98,7 @@ final class RsyncTransfer: @unchecked Sendable {
 
         let pipe = Pipe()
         proc.standardOutput = pipe
-        proc.standardError = Pipe()
+        proc.standardError = pipe
 
         try storeProcessIfNotCancelled(proc)
         try proc.run()
@@ -113,7 +117,7 @@ final class RsyncTransfer: @unchecked Sendable {
 
                 if let line = String(data: data, encoding: .utf8) {
                     let range = NSRange(line.startIndex..., in: line)
-                    if let match = progressRegex.firstMatch(in: line, range: range),
+                    if let match = progressRegex.matches(in: line, range: range).last,
                        let percentRange = Range(match.range(at: 1), in: line),
                        let percent = Double(line[percentRange])
                     {
@@ -122,15 +126,16 @@ final class RsyncTransfer: @unchecked Sendable {
                 }
             }
 
-            proc.terminationHandler = { process in
+            proc.terminationHandler = { [weak self] process in
                 fileHandle.readabilityHandler = nil
+                self?.clearProcess()
 
                 guard resumeGuard.setIfUnset() else { return }
 
                 if process.terminationStatus == 0 {
                     progressHandler(1.0)
                     continuation.resume()
-                } else if process.terminationReason == .uncaughtSignal {
+                } else if self?.isTransferCancelled() == true || process.terminationReason == .uncaughtSignal {
                     continuation.resume(throwing: CancellationError())
                 } else {
                     continuation.resume(
@@ -150,6 +155,16 @@ final class RsyncTransfer: @unchecked Sendable {
         }
     }
 
+    private func clearProcess() {
+        lock.withLock {
+            process = nil
+        }
+    }
+
+    private func isTransferCancelled() -> Bool {
+        lock.withLock { isCancelled }
+    }
+
     private func createAskpassScript(password: String) throws -> String {
         let dir = FileManager.default.temporaryDirectory
         let scriptPath = dir.appendingPathComponent("riverdrop_askpass_\(UUID().uuidString).sh").path
@@ -163,6 +178,33 @@ final class RsyncTransfer: @unchecked Sendable {
             ofItemAtPath: scriptPath
         )
         return scriptPath
+    }
+
+    private func createKnownHostsFile(for host: String) throws -> String {
+        guard let openSSHKey = loadKnownHostKey(for: host) else {
+            throw RsyncError.hostKeyMissing(host: host)
+        }
+
+        let dir = FileManager.default.temporaryDirectory
+        let filePath = dir.appendingPathComponent("riverdrop_knownhosts_\(UUID().uuidString)").path
+        let content = "\(host) \(openSSHKey)\n"
+
+        guard FileManager.default.createFile(
+            atPath: filePath,
+            contents: content.data(using: .utf8)
+        ) else {
+            throw RsyncError.knownHostsWriteFailed(path: filePath)
+        }
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: filePath
+        )
+        return filePath
+    }
+
+    private func loadKnownHostKey(for host: String) -> String? {
+        UserDefaults.standard.string(forKey: "KnownHostKey_" + host.lowercased())
     }
 }
 
@@ -184,6 +226,8 @@ private final class AtomicFlag: @unchecked Sendable {
 enum RsyncError: LocalizedError {
     case notInstalled
     case processFailed(exitCode: Int32)
+    case hostKeyMissing(host: String)
+    case knownHostsWriteFailed(path: String)
 
     var errorDescription: String? {
         switch self {
@@ -191,6 +235,10 @@ enum RsyncError: LocalizedError {
             return "rsync is not installed"
         case let .processFailed(exitCode):
             return "rsync exited with code \(exitCode)"
+        case let .hostKeyMissing(host):
+            return "No trusted host key found for \(host). Connect via SFTP first to trust and store the server key."
+        case let .knownHostsWriteFailed(path):
+            return "Could not write temporary known_hosts file at \(path)"
         }
     }
 }

@@ -277,7 +277,7 @@ private actor SFTPSession {
 
         try await sftp.withFile(filePath: remotePath, flags: [.write, .create, .truncate]) { remoteFile in
             var offset: UInt64 = 0
-            let chunkSize = 1_048_576 // 1 MB
+            let chunkSize = 4_194_304 // 4 MB
             var lastReportedProgress = -1.0
 
             while true {
@@ -316,7 +316,7 @@ private actor SFTPSession {
 
         try await sftp.withFile(filePath: remotePath, flags: .read) { remoteFile in
             var offset: UInt64 = 0
-            let chunkSize: UInt32 = 1_048_576 // 1 MB
+            let chunkSize: UInt32 = 4_194_304 // 4 MB
             var lastReportedProgress = -1.0
 
             while true {
