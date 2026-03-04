@@ -6,6 +6,7 @@ struct TransferItem: Identifiable {
     let id = UUID()
     let filename: String
     let isUpload: Bool
+    let destinationDirectory: String
     var progress: Double = 0
     var status: TransferStatus = .inProgress
 
@@ -107,7 +108,7 @@ final class TransferManager: ObservableObject {
     }
 
     private func uploadRenamed(localURL: URL, remoteName: String, to destinationPath: String) {
-        let item = TransferItem(filename: remoteName, isUpload: true)
+        let item = TransferItem(filename: remoteName, isUpload: true, destinationDirectory: destinationPath)
         transfers.insert(item, at: 0)
         let itemID = item.id
         let transferSize = localFileSize(at: localURL)
@@ -172,7 +173,7 @@ final class TransferManager: ObservableObject {
     }
 
     private func doUpload(localURL: URL, to destinationPath: String) {
-        let item = TransferItem(filename: localURL.lastPathComponent, isUpload: true)
+        let item = TransferItem(filename: localURL.lastPathComponent, isUpload: true, destinationDirectory: destinationPath)
         transfers.insert(item, at: 0)
         let itemID = item.id
         let transferSize = localFileSize(at: localURL)
@@ -391,7 +392,7 @@ final class TransferManager: ObservableObject {
         }
 
         let displayName = notifyFilename ?? defaultDisplayName
-        let item = TransferItem(filename: displayName, isUpload: false)
+        let item = TransferItem(filename: displayName, isUpload: false, destinationDirectory: localURL.deletingLastPathComponent().path)
         transfers.insert(item, at: 0)
         let itemID = item.id
         let transferSize = size
@@ -608,7 +609,7 @@ final class TransferManager: ObservableObject {
 
         let remotePath = sftpService.currentPath
         let dirName = (remotePath as NSString).lastPathComponent
-        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: false)
+        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: false, destinationDirectory: localDir.path)
         transfers.insert(item, at: 0)
         let itemID = item.id
         let host = sftpService.connectedHost
@@ -778,7 +779,7 @@ final class TransferManager: ObservableObject {
     }
 
     private func recordSkippedTransfer(filename: String, isUpload: Bool) {
-        var item = TransferItem(filename: filename, isUpload: isUpload)
+        var item = TransferItem(filename: filename, isUpload: isUpload, destinationDirectory: "")
         item.status = .skipped
         transfers.insert(item, at: 0)
     }

@@ -108,6 +108,7 @@ struct MainView: View {
     @State private var hoveredFileID: RemoteFileItem.ID?
     @State private var stagedDownloads: [StagedItem] = []
     @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
+    @State private var stagedUploads: [StagedItem] = []
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -227,6 +228,11 @@ struct MainView: View {
             }
 
             Divider()
+            DropZoneView(
+                direction: .upload,
+                stagedItems: $stagedUploads,
+                onTransferAll: uploadStaged
+            )
             DropZoneView(
                 direction: .download,
                 stagedItems: $stagedDownloads,
@@ -816,7 +822,7 @@ struct MainView: View {
                 .buttonStyle(.borderless)
                 .help("Cancel transfer")
             } else {
-                transferStatusView(item.status)
+                transferStatusView(item)
             }
         }
         .padding(.horizontal, RD.Spacing.sm)
@@ -847,14 +853,33 @@ struct MainView: View {
     }
 
     @ViewBuilder
-    private func transferStatusView(_ status: TransferItem.TransferStatus) -> some View {
-        switch status {
+    private func transferStatusView(_ item: TransferItem) -> some View {
+        switch item.status {
         case .completed:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 11))
                     .foregroundStyle(.green)
                 StatusBadge(text: "Done", color: .green)
+                if !item.destinationDirectory.isEmpty {
+                    Button {
+                        if item.isUpload {
+                            Task { await navigateRemoteTo(item.destinationDirectory) }
+                        } else {
+                            localCurrentDirectory = URL(fileURLWithPath: item.destinationDirectory)
+                        }
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: "arrow.right.circle")
+                                .font(.system(size: 10))
+                            Text("Show")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(item.isUpload ? "Navigate to remote directory" : "Navigate to local directory")
+                }
             }
         case .failed:
             HStack(spacing: 4) {
@@ -901,7 +926,13 @@ struct MainView: View {
                 }
 
                 Task { @MainActor in
-                    transferManager.upload(localURL: resolved)
+                    let attrs = try? FileManager.default.attributesOfItem(atPath: resolved.path)
+                    let size = (attrs?[.size] as? UInt64) ?? 0
+                    withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
+                        stagedUploads.append(
+                            StagedItem(filename: resolved.lastPathComponent, size: size, source: .local(resolved))
+                        )
+                    }
                 }
             }
         }
@@ -928,6 +959,15 @@ struct MainView: View {
             stagedDownloads.append(staged)
         }
         remoteSelectedIDs = []
+    }
+
+    private func uploadStaged() {
+        for item in stagedUploads {
+            if case .local(let url) = item.source {
+                transferManager.upload(localURL: url)
+            }
+        }
+        stagedUploads = []
     }
 
     private func downloadStaged() {

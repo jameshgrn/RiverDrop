@@ -878,7 +878,13 @@ struct LocalBrowserView: View {
                 }
 
                 Task { @MainActor in
-                    transferManager.upload(localURL: resolved)
+                    let attrs = try? FileManager.default.attributesOfItem(atPath: resolved.path)
+                    let size = (attrs?[.size] as? UInt64) ?? 0
+                    withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
+                        stagedUploads.append(
+                            StagedItem(filename: resolved.lastPathComponent, size: size, source: .local(resolved))
+                        )
+                    }
                 }
             }
         }
