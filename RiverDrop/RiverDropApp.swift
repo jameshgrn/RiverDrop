@@ -6,13 +6,9 @@ struct RiverDropApp: App {
     @StateObject private var transferManager: TransferManager
     @StateObject private var storeManager: StoreManager
 
-    @FocusedValue(\.isConnected) private var isConnected
-    @FocusedValue(\.disconnect) private var disconnect
-    @FocusedValue(\.refresh) private var refresh
-    @FocusedValue(\.showHiddenLocalFiles) private var showHiddenLocalFiles
-    @FocusedValue(\.showHiddenRemoteFiles) private var showHiddenRemoteFiles
-    @FocusedValue(\.isTransferLogExpanded) private var isTransferLogExpanded
-    @FocusedValue(\.navigateToBookmark) private var navigateToBookmark
+    @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenLocalFiles = false
+    @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
+    @AppStorage(DefaultsKey.isTransferLogExpanded) private var isTransferLogExpanded = false
 
     init() {
         let service = SFTPService()
@@ -41,31 +37,31 @@ struct RiverDropApp: App {
             // File menu
             CommandGroup(replacing: .newItem) {
                 Button("Refresh") {
-                    refresh?()
+                    Task { await sftpService.listDirectory() }
                 }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(isConnected != true)
+                .disabled(!sftpService.isConnected)
 
                 Divider()
 
                 Button("Disconnect") {
-                    disconnect?()
+                    Task { await sftpService.disconnect() }
                 }
                 .keyboardShortcut("d", modifiers: .command)
-                .disabled(isConnected != true)
+                .disabled(!sftpService.isConnected)
             }
 
             // View menu
             CommandGroup(after: .toolbar) {
                 Toggle(
                     "Show Hidden Files \u{2014} Local",
-                    isOn: showHiddenLocalFiles ?? .constant(false)
+                    isOn: $showHiddenLocalFiles
                 )
                 .keyboardShortcut(".", modifiers: [.command, .shift])
 
                 Toggle(
                     "Show Hidden Files \u{2014} Remote",
-                    isOn: showHiddenRemoteFiles ?? .constant(false)
+                    isOn: $showHiddenRemoteFiles
                 )
                 .keyboardShortcut(",", modifiers: [.command, .shift])
 
@@ -73,7 +69,7 @@ struct RiverDropApp: App {
 
                 Toggle(
                     "Toggle Transfer Log",
-                    isOn: isTransferLogExpanded ?? .constant(false)
+                    isOn: $isTransferLogExpanded
                 )
                 .keyboardShortcut("l", modifiers: .command)
             }
@@ -82,21 +78,21 @@ struct RiverDropApp: App {
             CommandMenu("Go") {
                 if FileManager.default.fileExists(atPath: "/Users/\(NSUserName())/projects") {
                     Button("Projects") {
-                        navigateToBookmark?("/Users/\(NSUserName())/projects")
+                        postNavigateLocalPathCommand("/Users/\(NSUserName())/projects")
                     }
                     .keyboardShortcut("1", modifiers: .command)
                 }
 
                 if FileManager.default.fileExists(atPath: "/Users/\(NSUserName())") {
                     Button("Home") {
-                        navigateToBookmark?("/Users/\(NSUserName())")
+                        postNavigateLocalPathCommand("/Users/\(NSUserName())")
                     }
                     .keyboardShortcut("2", modifiers: .command)
                 }
 
                 if FileManager.default.fileExists(atPath: "/not_backed_up/\(NSUserName())") {
                     Button("Cluster Scratch") {
-                        navigateToBookmark?("/not_backed_up/\(NSUserName())")
+                        postNavigateLocalPathCommand("/not_backed_up/\(NSUserName())")
                     }
                     .keyboardShortcut("3", modifiers: .command)
                 }
@@ -104,7 +100,7 @@ struct RiverDropApp: App {
                 Divider()
 
                 Button("Navigate to Folder\u{2026}") {
-                    navigateToBookmark?("__open_panel__")
+                    postNavigateLocalPathCommand(AppCommandPayload.openPanel)
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
             }
@@ -113,5 +109,9 @@ struct RiverDropApp: App {
         Settings {
             SettingsView()
         }
+    }
+
+    private func postNavigateLocalPathCommand(_ path: String) {
+        NotificationCenter.default.post(name: .riverDropNavigateLocalPath, object: path)
     }
 }

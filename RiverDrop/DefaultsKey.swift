@@ -7,6 +7,7 @@ enum DefaultsKey {
     static let lastSSHKeyPath = "lastSSHKeyPath"
     static let showHiddenLocalFiles = "showHiddenLocalFiles"
     static let showHiddenRemoteFiles = "showHiddenRemoteFiles"
+    static let isTransferLogExpanded = "isTransferLogExpanded"
     static let sandboxBookmarkPrefix = "SandboxBookmark_"
     static let defaultLocalDirectory = "defaultLocalDirectory"
     static let defaultPort = "defaultPort"

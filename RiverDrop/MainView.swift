@@ -151,7 +151,7 @@ struct MainView: View {
     @State private var showRemoteContentSearch = false
     @State private var remoteContentSearchQuery = ""
     @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
-    @State private var isTransferLogExpanded = false
+    @AppStorage(DefaultsKey.isTransferLogExpanded) private var isTransferLogExpanded = false
     @State private var hoveredFileID: RemoteFileItem.ID?
     @State private var stagedDownloads: [StagedItem] = []
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenLocalFiles = false
@@ -213,32 +213,6 @@ struct MainView: View {
                 }
             }
         }
-        .focusedSceneValue(\.isConnected, sftpService.isConnected)
-        .focusedSceneValue(\.disconnect, { [weak sftpService] in
-            guard let sftpService else { return }
-            Task { await sftpService.disconnect() }
-        })
-        .focusedSceneValue(\.refresh, { [weak sftpService] in
-            guard let sftpService else { return }
-            Task { await sftpService.listDirectory() }
-        })
-        .focusedSceneValue(\.showHiddenLocalFiles, $showHiddenLocalFiles)
-        .focusedSceneValue(\.showHiddenRemoteFiles, $showHiddenRemoteFiles)
-        .focusedSceneValue(\.isTransferLogExpanded, $isTransferLogExpanded)
-        .focusedSceneValue(\.navigateToBookmark, { path in
-            if path == "__open_panel__" {
-                let panel = NSOpenPanel()
-                panel.canChooseDirectories = true
-                panel.canChooseFiles = false
-                panel.allowsMultipleSelection = false
-                panel.prompt = "Navigate"
-                if panel.runModal() == .OK, let url = panel.url {
-                    localCurrentDirectory = url
-                }
-            } else {
-                localCurrentDirectory = URL(fileURLWithPath: path)
-            }
-        })
         .onAppear {
             if !defaultLocalDirectory.isEmpty {
                 localCurrentDirectory = URL(fileURLWithPath: defaultLocalDirectory)
@@ -247,6 +221,10 @@ struct MainView: View {
                 recentlyDownloaded.insert(filename)
             }
             Task { await navigateRemoteTo(pathForRoot(remoteRoot)) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .riverDropNavigateLocalPath)) { notification in
+            guard let path = notification.object as? String else { return }
+            navigateLocalToCommandPath(path)
         }
         .onChange(of: showHiddenRemoteFiles) { _, showHidden in
             if !showHidden {
@@ -697,6 +675,21 @@ struct MainView: View {
             }
             return "/not_backed_up/\(sftpService.connectedUsername)"
         }
+    }
+
+    private func navigateLocalToCommandPath(_ path: String) {
+        if path == AppCommandPayload.openPanel {
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.allowsMultipleSelection = false
+            panel.prompt = "Navigate"
+            if panel.runModal() == .OK, let url = panel.url {
+                localCurrentDirectory = url
+            }
+            return
+        }
+        localCurrentDirectory = URL(fileURLWithPath: path)
     }
 
     private func navigateRemoteTo(_ path: String) async {
