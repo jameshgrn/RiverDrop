@@ -107,14 +107,21 @@ struct MainView: View {
     @State private var isTransferLogExpanded = false
     @State private var hoveredFileID: RemoteFileItem.ID?
     @State private var stagedDownloads: [StagedItem] = []
+    @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
         case notBackedUp = "Scratch"
     }
 
+    private var visibleRemoteFiles: [RemoteFileItem] {
+        showHiddenRemoteFiles
+            ? sftpService.files
+            : sftpService.files.filter { !$0.filename.hasPrefix(".") }
+    }
+
     private var filteredRemoteFiles: [RemoteFileItem] {
-        fuzzyFilter(items: sftpService.files, query: remoteSearchText) { $0.filename }
+        fuzzyFilter(items: visibleRemoteFiles, query: remoteSearchText) { $0.filename }
     }
 
     private var displayedRemoteFiles: [RemoteFileItem] {
@@ -139,6 +146,8 @@ struct MainView: View {
             }
             Divider()
             transferLog
+            Divider()
+            connectionFooter
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -158,6 +167,13 @@ struct MainView: View {
                 recentlyDownloaded.insert(filename)
             }
             Task { await navigateRemoteTo(pathForRoot(remoteRoot)) }
+        }
+        .onChange(of: showHiddenRemoteFiles) { _, showHidden in
+            if !showHidden {
+                let visibleIDs = Set(visibleRemoteFiles.map(\.id))
+                remoteSelectedIDs = remoteSelectedIDs.intersection(visibleIDs)
+            }
+            remoteDisplayLimit = 200
         }
     }
 
@@ -275,6 +291,13 @@ struct MainView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh")
+
+                Button {
+                    showHiddenRemoteFiles.toggle()
+                } label: {
+                    Image(systemName: showHiddenRemoteFiles ? "eye" : "eye.slash")
+                }
+                .help(showHiddenRemoteFiles ? "Hide hidden files" : "Show hidden files")
 
                 Picker("", selection: $remoteRoot) {
                     ForEach(RemoteRoot.allCases, id: \.self) { root in
@@ -801,6 +824,28 @@ struct MainView: View {
         .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
     }
 
+    private var connectionFooter: some View {
+        HStack(spacing: RD.Spacing.sm) {
+            Image(systemName: sftpService.isConnected ? "lock.shield.fill" : "lock.slash")
+                .font(.system(size: 11))
+                .foregroundStyle(sftpService.isConnected ? Color.riverPrimary : .secondary)
+
+            Text(sftpService.isConnected ? "\(sftpService.connectedUsername)@\(sftpService.connectedHost)" : "Not connected")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            StatusBadge(text: sftpService.connectionMethodLabel, color: .riverPrimary)
+            StatusBadge(text: "Auth: \(sftpService.authenticationMethodLabel)", color: .secondary)
+        }
+        .padding(.horizontal, RD.Spacing.md)
+        .padding(.vertical, RD.Spacing.xs + 2)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+    }
+
     @ViewBuilder
     private func transferStatusView(_ status: TransferItem.TransferStatus) -> some View {
         switch status {
@@ -835,7 +880,7 @@ struct MainView: View {
     // MARK: - Actions
 
     private var selectedRemoteFiles: [RemoteFileItem] {
-        sftpService.files.filter { remoteSelectedIDs.contains($0.id) }
+        visibleRemoteFiles.filter { remoteSelectedIDs.contains($0.id) }
     }
 
     private func handleRemoteDrop(_ providers: [NSItemProvider]) {

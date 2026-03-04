@@ -15,6 +15,21 @@ final class SFTPService: ObservableObject {
     @Published var errorMessage: String?
     private(set) var connectedAuthConfig: SSHAuthConfig?
 
+    var connectionMethodLabel: String {
+        isConnected ? "SFTP" : "Disconnected"
+    }
+
+    var authenticationMethodLabel: String {
+        switch connectedAuthConfig {
+        case .password:
+            return "Password"
+        case let .sshKey(keyPath, _):
+            return "SSH Key (\((keyPath as NSString).lastPathComponent))"
+        case nil:
+            return "None"
+        }
+    }
+
     private let session = SFTPSession()
 
     func connect(host: String, username: String, password: String) async {

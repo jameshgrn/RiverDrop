@@ -29,6 +29,7 @@ struct LocalBrowserView: View {
     @State private var itemToRename: LocalFileItem?
     @State private var renameText = ""
     @State private var stagedUploads: [StagedItem] = []
+    @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenFiles = false
 
     private static let bookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -94,6 +95,11 @@ struct LocalBrowserView: View {
         .onChange(of: searchText) { _, _ in
             localDisplayLimit = 200
         }
+        .onChange(of: showHiddenFiles) { _, _ in
+            selectedIDs = []
+            localDisplayLimit = 200
+            loadDirectory()
+        }
         .onDisappear {
             stopSecurityScopedAccess()
         }
@@ -140,6 +146,14 @@ struct LocalBrowserView: View {
             }
             .frame(width: 28, height: 24)
             .help("Refresh")
+
+            Button {
+                showHiddenFiles.toggle()
+            } label: {
+                Image(systemName: showHiddenFiles ? "eye" : "eye.slash")
+            }
+            .frame(width: 28, height: 24)
+            .help(showHiddenFiles ? "Hide hidden files" : "Show hidden files")
 
             Menu {
                 ForEach(Self.bookmarks, id: \.path) { bookmark in
@@ -743,7 +757,7 @@ struct LocalBrowserView: View {
             let urls = try FileManager.default.contentsOfDirectory(
                 at: localCurrentDirectory,
                 includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
-                options: [.skipsHiddenFiles]
+                options: showHiddenFiles ? [] : [.skipsHiddenFiles]
             )
             var skippedCount = 0
             files = urls.compactMap { url in
