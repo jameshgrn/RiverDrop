@@ -22,6 +22,12 @@ struct LocalBrowserView: View {
     @State private var highlightFileName: String?
     @StateObject private var ripgrepSearch = RipgrepSearch()
     @State private var showPaywall = false
+    @State private var showDeleteConfirmation = false
+    @State private var itemToDelete: LocalFileItem?
+    @State private var showTrashConfirmation = false
+    @State private var showRenameAlert = false
+    @State private var itemToRename: LocalFileItem?
+    @State private var renameText = ""
 
     private static let bookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -97,6 +103,27 @@ struct LocalBrowserView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .alert("Delete Permanently?", isPresented: $showDeleteConfirmation, presenting: itemToDelete) { file in
+            Button("Delete", role: .destructive) { permanentlyDelete(file) }
+            Button("Cancel", role: .cancel) { }
+        } message: { file in
+            Text("\"\(file.filename)\" will be permanently deleted. This cannot be undone.")
+        }
+        .alert("Move to Trash?", isPresented: $showTrashConfirmation) {
+            Button("Move to Trash", role: .destructive) { trashSelectedFiles() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("\(selectedIDs.count) item(s) will be moved to the Trash.")
+        }
+        .alert("Rename", isPresented: $showRenameAlert) {
+            TextField("New name", text: $renameText)
+            Button("Rename") {
+                if let file = itemToRename { performRename(file) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Enter a new name:")
         }
     }
 
@@ -387,6 +414,16 @@ struct LocalBrowserView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onKeyPress(.return) {
+            guard !selectedIDs.isEmpty else { return .ignored }
+            openSelectedFiles()
+            return .handled
+        }
+        .onKeyPress(.delete) {
+            guard !selectedIDs.isEmpty else { return .ignored }
+            showTrashConfirmation = true
+            return .handled
+        }
     }
 
     private func folderRow(_ file: LocalFileItem) -> some View {
@@ -410,6 +447,23 @@ struct LocalBrowserView: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Open in Finder") {
+                NSWorkspace.shared.open(file.url)
+            }
+            Button("Copy Path") {
+                copyItemPath(file)
+            }
+            Divider()
+            Button("Rename\u{2026}") {
+                itemToRename = file
+                renameText = file.filename
+                showRenameAlert = true
+            }
+            Button("Move to Trash") {
+                moveToTrash(file)
+            }
+        }
     }
 
     private func fileRow(_ file: LocalFileItem) -> some View {
@@ -455,12 +509,28 @@ struct LocalBrowserView: View {
         }
         .listRowBackground(isHighlighted ? Color.accentColor.opacity(0.15) : nil)
         .contentShape(Rectangle())
-        .onTapGesture {
+        .onTapGesture(count: 2) {
+            openFile(file)
+        }
+        .onTapGesture(count: 1) {
             highlightFileName = nil
             if isSelected {
                 selectedIDs.remove(file.id)
             } else {
                 selectedIDs.insert(file.id)
+            }
+        }
+        .contextMenu {
+            Button("Open") { openFile(file) }
+            openWithMenu(for: file)
+            Divider()
+            Button("Show in Finder") { showInFinder(file) }
+            Button("Copy Path") { copyItemPath(file) }
+            Divider()
+            Button("Move to Trash") { moveToTrash(file) }
+            Button("Delete\u{2026}") {
+                itemToDelete = file
+                showDeleteConfirmation = true
             }
         }
     }
@@ -755,6 +825,98 @@ struct LocalBrowserView: View {
             return url.standardizedFileURL
         }
         return nil
+    }
+
+    // MARK: - File Operations
+
+    private func openFile(_ file: LocalFileItem) {
+        if file.isDirectory {
+            navigateTo(file.url)
+        } else {
+            NSWorkspace.shared.open(file.url)
+        }
+    }
+
+    private func openSelectedFiles() {
+        for file in selectedFiles {
+            openFile(file)
+        }
+    }
+
+    @ViewBuilder
+    private func openWithMenu(for file: LocalFileItem) -> some View {
+        let apps = NSWorkspace.shared.urlsForApplications(toOpen: file.url)
+        if apps.isEmpty {
+            Button("Open With\u{2026}") { openFile(file) }
+                .disabled(true)
+        } else {
+            Menu("Open With") {
+                ForEach(Array(apps.prefix(15)), id: \.self) { appURL in
+                    Button(appURL.deletingPathExtension().lastPathComponent) {
+                        Task {
+                            let config = NSWorkspace.OpenConfiguration()
+                            _ = try? await NSWorkspace.shared.open(
+                                [file.url], withApplicationAt: appURL, configuration: config
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func showInFinder(_ file: LocalFileItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([file.url])
+    }
+
+    private func copyItemPath(_ file: LocalFileItem) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(file.url.path, forType: .string)
+    }
+
+    private func moveToTrash(_ file: LocalFileItem) {
+        do {
+            try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+            selectedIDs.remove(file.id)
+            loadDirectory()
+        } catch {
+            sftpService.errorMessage = "Move to Trash failed for \(file.filename): \(error.localizedDescription). Suggested fix: check file permissions."
+        }
+    }
+
+    private func trashSelectedFiles() {
+        for file in selectedFiles {
+            do {
+                try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+            } catch {
+                sftpService.errorMessage = "Move to Trash failed for \(file.filename): \(error.localizedDescription). Suggested fix: check file permissions."
+            }
+        }
+        selectedIDs = []
+        loadDirectory()
+    }
+
+    private func permanentlyDelete(_ file: LocalFileItem) {
+        do {
+            try FileManager.default.removeItem(at: file.url)
+            selectedIDs.remove(file.id)
+            loadDirectory()
+        } catch {
+            sftpService.errorMessage = "Delete failed for \(file.filename): \(error.localizedDescription). Suggested fix: check file permissions."
+        }
+    }
+
+    private func performRename(_ file: LocalFileItem) {
+        let trimmed = renameText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != file.filename else { return }
+        let newURL = file.url.deletingLastPathComponent().appendingPathComponent(trimmed)
+        do {
+            try FileManager.default.moveItem(at: file.url, to: newURL)
+            loadDirectory()
+        } catch {
+            sftpService.errorMessage = "Rename failed for \(file.filename): \(error.localizedDescription). Suggested fix: check permissions and ensure name is valid."
+        }
     }
 
     // MARK: - Clipboard
