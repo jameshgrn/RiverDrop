@@ -20,12 +20,28 @@ final class RemoteRipgrepSearch: ObservableObject {
     @Published var errorMessage: String?
     @Published var maxCount: Int = 100
     @Published var maxColumns: Int = 200
+    @Published var ripgrepAvailable: Bool?
 
     private var searchTask: Task<Void, Never>?
+
+    func checkRipgrepAvailable(via service: SFTPService) async {
+        do {
+            let output = try await service.executeCommand("command -v rg >/dev/null 2>&1; echo $?")
+            let code = Int(output.trimmingCharacters(in: .whitespacesAndNewlines))
+            ripgrepAvailable = code == 0
+        } catch {
+            ripgrepAvailable = nil
+        }
+    }
 
     func search(query: String, in directory: String, via service: SFTPService) {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+
+        if ripgrepAvailable == false {
+            errorMessage = "Ripgrep (rg) not found on server. Ask your system admin to install it, or run: conda install -c conda-forge ripgrep"
+            return
+        }
 
         cancel()
         results = []
@@ -74,8 +90,12 @@ final class RemoteRipgrepSearch: ObservableObject {
             } else if exitCode == 1 {
                 // Exit code 1 means no matches found, which is not an error.
                 results = []
+            } else if exitCode == 126 {
+                errorMessage = "Ripgrep (rg) found but not executable on server. Check file permissions or ask your system admin."
+            } else if exitCode == 127 {
+                ripgrepAvailable = false
+                errorMessage = "Ripgrep (rg) not found on server. Ask your system admin to install it, or run: conda install -c conda-forge ripgrep"
             } else {
-                // Exit code 2+ (e.g., 127 for rg not installed) are real errors.
                 errorMessage = "Remote search failed with exit code \(exitCode)"
             }
         }
