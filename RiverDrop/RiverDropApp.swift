@@ -4,11 +4,14 @@ import SwiftUI
 struct RiverDropApp: App {
     @StateObject private var sftpService: SFTPService
     @StateObject private var transferManager: TransferManager
+    @StateObject private var storeManager: StoreManager
 
     init() {
         let service = SFTPService()
+        let store = StoreManager()
         _sftpService = StateObject(wrappedValue: service)
-        _transferManager = StateObject(wrappedValue: TransferManager(sftpService: service))
+        _storeManager = StateObject(wrappedValue: store)
+        _transferManager = StateObject(wrappedValue: TransferManager(sftpService: service, storeManager: store))
     }
 
     var body: some Scene {
@@ -22,6 +25,7 @@ struct RiverDropApp: App {
             }
             .environmentObject(sftpService)
             .environmentObject(transferManager)
+            .environmentObject(storeManager)
             .frame(minWidth: 700, minHeight: 500)
         }
     }
