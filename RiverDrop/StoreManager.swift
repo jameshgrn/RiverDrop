@@ -38,6 +38,7 @@ final class StoreManager: ObservableObject {
     }
 
     func loadProducts() async {
+        errorMessage = nil
         do {
             let products = try await Product.products(for: [Self.proProductID])
             proProduct = products.first
@@ -47,6 +48,7 @@ final class StoreManager: ObservableObject {
     }
 
     func purchase() async {
+        errorMessage = nil
         guard let product = proProduct else {
             errorMessage = "Purchase failed: product not loaded. Suggested fix: wait for products to load and retry."
             return
@@ -65,7 +67,7 @@ final class StoreManager: ObservableObject {
             case .userCancelled:
                 break
             case .pending:
-                break
+                errorMessage = "Purchase pending approval. You'll get access once approved."
             @unknown default:
                 break
             }
@@ -75,6 +77,7 @@ final class StoreManager: ObservableObject {
     }
 
     func restorePurchases() async {
+        errorMessage = nil
         do {
             try await AppStore.sync()
             await checkEntitlements()

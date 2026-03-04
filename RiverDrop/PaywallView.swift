@@ -42,6 +42,12 @@ struct PaywallView: View {
             withAnimation(.easeOut(duration: 0.18)) {
                 appeared = true
             }
+            if storeManager.proProduct == nil {
+                Task { await storeManager.loadProducts() }
+            }
+        }
+        .onChange(of: storeManager.isPro) { _, isPro in
+            if isPro { dismiss() }
         }
     }
 
