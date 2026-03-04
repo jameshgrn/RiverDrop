@@ -35,7 +35,7 @@ final class RemoteRipgrepSearch: ObservableObject {
 
             let escapedQuery = trimmed.replacingOccurrences(of: "'", with: "'\\''")
             let escapedDir = directory.replacingOccurrences(of: "'", with: "'\\''")
-            let command = "rg --line-number --no-heading --color never --max-count 100 --max-columns 200 -- '\(escapedQuery)' '\(escapedDir)' 2>/dev/null"
+            let command = "rg --json --max-count 100 --max-columns 200 -- '\(escapedQuery)' '\(escapedDir)' 2>/dev/null"
 
             let output: String
             do {
@@ -48,12 +48,11 @@ final class RemoteRipgrepSearch: ObservableObject {
 
             guard !Task.isCancelled else { return }
 
-            results = output
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .compactMap { line -> RemoteRipgrepResult? in
-                    guard let m = parseRipgrepFields(String(line)) else { return nil }
-                    return RemoteRipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
-                }
+            guard let data = output.data(using: .utf8) else { return }
+            let parsed = parseRipgrepJSON(data)
+            results = parsed.map { m in
+                RemoteRipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
+            }
         }
     }
 

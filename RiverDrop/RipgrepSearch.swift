@@ -15,32 +15,41 @@ struct RipgrepResult: Identifiable {
     }
 }
 
-struct ParsedRipgrepMatch {
-    let filePath: String
-    let lineNumber: Int
-    let content: String
+struct RipgrepJSONMessage: Codable {
+    let type: String
+    let data: RipgrepJSONData?
 }
 
-func parseRipgrepFields(_ line: String) -> ParsedRipgrepMatch? {
-    guard let firstColon = line.firstIndex(of: ":") else { return nil }
-    let filePath = String(line[line.startIndex ..< firstColon])
+struct RipgrepJSONData: Codable {
+    struct Path: Codable {
+        let text: String
+    }
+    struct Lines: Codable {
+        let text: String
+    }
+    let path: Path?
+    let line_number: Int?
+    let lines: Lines?
+}
 
-    let afterFirst = line.index(after: firstColon)
-    guard afterFirst < line.endIndex,
-          let secondColon = line[afterFirst...].firstIndex(of: ":")
-    else { return nil }
-
-    let lineNumStr = String(line[afterFirst ..< secondColon])
-    guard let lineNum = Int(lineNumStr) else { return nil }
-
-    let contentStart = line.index(after: secondColon)
-    let content = contentStart < line.endIndex ? String(line[contentStart...]) : ""
-
-    return ParsedRipgrepMatch(
-        filePath: filePath,
-        lineNumber: lineNum,
-        content: content.trimmingCharacters(in: .whitespaces)
-    )
+func parseRipgrepJSON(_ data: Data) -> [RipgrepResult] {
+    let decoder = JSONDecoder()
+    let lines = data.split(separator: 10) // newline
+    return lines.compactMap { lineData in
+        guard let message = try? decoder.decode(RipgrepJSONMessage.self, from: lineData),
+              message.type == "match",
+              let data = message.data,
+              let path = data.path?.text,
+              let lineNumber = data.line_number,
+              let content = data.lines?.text else {
+            return nil
+        }
+        return RipgrepResult(
+            filePath: path,
+            lineNumber: lineNumber,
+            content: content.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
 }
 
 @MainActor
@@ -108,9 +117,7 @@ final class RipgrepSearch: ObservableObject {
         }
 
         var args: [String] = [
-            "--line-number",
-            "--no-heading",
-            "--color", "never",
+            "--json",
             "--max-count", "100",
             "--max-columns", "200",
         ]
@@ -175,14 +182,7 @@ final class RipgrepSearch: ObservableObject {
                 self.stopSecurityScopedAccess()
             }
 
-            guard let output = String(data: data, encoding: .utf8) else { return }
-
-            let parsed = output
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .compactMap { line -> RipgrepResult? in
-                    guard let m = parseRipgrepFields(String(line)) else { return nil }
-                    return RipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
-                }
+            let parsed = parseRipgrepJSON(data)
 
             await MainActor.run { [weak self] in
                 guard let self = self, self.currentSearchToken == token else { return }
