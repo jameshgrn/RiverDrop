@@ -379,9 +379,7 @@ struct MainView: View {
 
                 Picker("", selection: $remoteRoot) {
                     ForEach(RemoteRoot.allCases, id: \.self) { root in
-                        if root != .notBackedUp || FileManager.default.fileExists(atPath: "/not_backed_up/\(NSUserName())") {
-                            Text(root.rawValue).tag(root)
-                        }
+                        Text(root.rawValue).tag(root)
                     }
                 }
                 .pickerStyle(.segmented)
