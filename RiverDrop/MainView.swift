@@ -587,6 +587,30 @@ struct MainView: View {
                 }
             }
 
+            HStack(spacing: RD.Spacing.md) {
+                HStack(spacing: RD.Spacing.xs) {
+                    Text("Max results:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("100", value: $remoteRipgrepSearch.maxCount, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 56)
+                        .font(.caption)
+                        .monospacedDigit()
+                }
+
+                HStack(spacing: RD.Spacing.xs) {
+                    Text("Max line length:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("200", value: $remoteRipgrepSearch.maxColumns, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 56)
+                        .font(.caption)
+                        .monospacedDigit()
+                }
+            }
+
             if let error = remoteRipgrepSearch.errorMessage {
                 Text(error)
                     .font(.caption)

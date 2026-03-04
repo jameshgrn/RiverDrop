@@ -63,6 +63,8 @@ final class RipgrepSearch: ObservableObject {
     @Published var searchCompleted = false
     @Published var resultCount: Int = 0
     @Published var searchDirectory: String = ""
+    @Published var maxCount: Int = 100
+    @Published var maxColumns: Int = 200
 
     private var process: Process?
     private var accessedURL: URL?
@@ -121,8 +123,8 @@ final class RipgrepSearch: ObservableObject {
 
         var args: [String] = [
             "--json",
-            "--max-count", "100",
-            "--max-columns", "200",
+            "--max-count", "\(maxCount)",
+            "--max-columns", "\(maxColumns)",
         ]
 
         if !recursive {
