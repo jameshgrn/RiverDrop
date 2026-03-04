@@ -547,6 +547,10 @@ final class TransferManager: ObservableObject {
     // MARK: - Dry Run
 
     func runDryRunDownload(localDir: URL) async {
+        guard storeManager.isPro else {
+            sftpService.errorMessage = "Dry-run failed: Pro subscription required. Suggested fix: upgrade to Pro."
+            return
+        }
         guard sftpService.isConnected else {
             sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
             return
@@ -585,6 +589,10 @@ final class TransferManager: ObservableObject {
     // MARK: - Directory Sync
 
     func syncDirectory(localDir: URL) {
+        guard storeManager.isPro else {
+            sftpService.errorMessage = "Sync failed: Pro subscription required. Suggested fix: upgrade to Pro."
+            return
+        }
         guard sftpService.isConnected else {
             sftpService.errorMessage = "Sync failed: not connected to a server. Suggested fix: connect first."
             return
