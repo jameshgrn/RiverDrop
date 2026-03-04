@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct LocalBrowserView: View {
     @EnvironmentObject var transferManager: TransferManager
     @EnvironmentObject var sftpService: SFTPService
+    @EnvironmentObject var storeManager: StoreManager
 
     @Binding var localCurrentDirectory: URL
     @Binding var recentlyDownloaded: Set<String>
@@ -17,6 +18,7 @@ struct LocalBrowserView: View {
     @State private var showContentSearch = false
     @State private var contentSearchQuery = ""
     @StateObject private var ripgrepSearch = RipgrepSearch()
+    @State private var showPaywall = false
 
     private static let bookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -90,6 +92,9 @@ struct LocalBrowserView: View {
         .onDisappear {
             stopSecurityScopedAccess()
         }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
     }
 
     // MARK: - Toolbar
@@ -129,9 +134,13 @@ struct LocalBrowserView: View {
                 .frame(maxWidth: 140)
 
             Button {
-                showContentSearch.toggle()
-                if !showContentSearch {
-                    ripgrepSearch.cancel()
+                if storeManager.isPro {
+                    showContentSearch.toggle()
+                    if !showContentSearch {
+                        ripgrepSearch.cancel()
+                    }
+                } else {
+                    showPaywall = true
                 }
             } label: {
                 Image(systemName: "doc.text.magnifyingglass")
