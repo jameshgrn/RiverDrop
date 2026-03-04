@@ -13,4 +13,5 @@ enum DefaultsKey {
     static let defaultPort = "defaultPort"
     static let rememberCredentials = "rememberCredentials"
     static let alwaysPreviewBeforeSync = "alwaysPreviewBeforeSync"
+    static let savedBookmarks = "savedBookmarks"
 }
