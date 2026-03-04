@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DryRunPreviewView: View {
     let result: DryRunResult
+    var isApplying: Bool = false
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -156,6 +157,7 @@ struct DryRunPreviewView: View {
             }
             .buttonStyle(RDButtonStyle(isProminent: false))
             .keyboardShortcut(.cancelAction)
+            .disabled(isApplying)
 
             Spacer()
 
@@ -163,14 +165,19 @@ struct DryRunPreviewView: View {
                 onConfirm()
             } label: {
                 HStack(spacing: RD.Spacing.xs) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 11))
-                    Text("Sync \(result.totalFiles) files")
+                    if isApplying {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11))
+                    }
+                    Text(isApplying ? "Syncing\u{2026}" : "Sync \(result.totalFiles) files")
                 }
             }
             .buttonStyle(RDButtonStyle(isProminent: true))
             .keyboardShortcut(.defaultAction)
-            .disabled(result.isEmpty)
+            .disabled(result.isEmpty || isApplying)
         }
         .padding(.horizontal, RD.Spacing.lg)
         .padding(.vertical, RD.Spacing.md)

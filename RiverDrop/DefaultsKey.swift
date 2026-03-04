@@ -14,4 +14,5 @@ enum DefaultsKey {
     static let rememberCredentials = "rememberCredentials"
     static let alwaysPreviewBeforeSync = "alwaysPreviewBeforeSync"
     static let savedBookmarks = "savedBookmarks"
+    static let sshKeyBookmarks = "sshKeyBookmarks"
 }

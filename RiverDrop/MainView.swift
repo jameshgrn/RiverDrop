@@ -303,17 +303,27 @@ struct MainView: View {
             if let result = transferManager.dryRunResult {
                 DryRunPreviewView(
                     result: result,
+                    isApplying: transferManager.isApplyingSync,
                     onConfirm: {
-                        showDryRunPreview = false
+                        guard !transferManager.isApplyingSync else { return }
                         if storeManager.isPro {
-                            if dryRunIsUpload {
-                                // Sync upload: local -> remote
-                                transferManager.syncUpload(localDir: localCurrentDirectory)
-                            } else {
-                                // Sync download: remote -> local
-                                transferManager.syncDirectory(localDir: localCurrentDirectory)
+                            Task {
+                                do {
+                                    if dryRunIsUpload {
+                                        try await transferManager.applySyncUpload(localDir: localCurrentDirectory)
+                                    } else {
+                                        try await transferManager.applySyncDownload(localDir: localCurrentDirectory)
+                                    }
+                                    showDryRunPreview = false
+                                    await sftpService.listDirectory()
+                                } catch is CancellationError {
+                                    // user cancelled, keep sheet open
+                                } catch {
+                                    sftpService.errorMessage = error.localizedDescription
+                                }
                             }
                         } else {
+                            showDryRunPreview = false
                             showPaywall = true
                         }
                     },

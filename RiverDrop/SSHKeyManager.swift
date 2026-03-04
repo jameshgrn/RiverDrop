@@ -16,20 +16,69 @@ struct SSHKeyInfo: Sendable, Identifiable, Hashable {
 }
 
 enum SSHKeyManager {
-    private static let knownKeyFilenames = [
-        "id_ed25519",
-        "id_ecdsa",
-        "id_rsa",
-    ]
+    // MARK: - Security-Scoped Bookmark Storage
 
+    /// Returns all SSH keys that have stored security-scoped bookmarks.
     static func discoverKeys() -> [SSHKeyInfo] {
-        let sshDir = (NSHomeDirectory() as NSString).appendingPathComponent(".ssh")
-        return knownKeyFilenames.compactMap { filename in
-            let path = (sshDir as NSString).appendingPathComponent(filename)
-            guard FileManager.default.isReadableFile(atPath: path) else { return nil }
-            return SSHKeyInfo(path: path, filename: filename)
+        storedBookmarks().compactMap { path, data in
+            var isStale = false
+            guard let url = try? URL(
+                resolvingBookmarkData: data,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) else {
+                return nil
+            }
+            return SSHKeyInfo(path: url.path, filename: url.lastPathComponent)
         }
     }
+
+    /// Saves a security-scoped bookmark for a user-selected SSH key URL.
+    /// Call this after NSOpenPanel returns a URL.
+    static func saveBookmark(for url: URL) throws {
+        let bookmarkData = try url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        var bookmarks = storedBookmarks()
+        bookmarks[url.path] = bookmarkData
+        UserDefaults.standard.set(bookmarks, forKey: DefaultsKey.sshKeyBookmarks)
+    }
+
+    /// Removes the stored bookmark for a given path.
+    static func removeBookmark(for path: String) {
+        var bookmarks = storedBookmarks()
+        bookmarks.removeValue(forKey: path)
+        UserDefaults.standard.set(bookmarks, forKey: DefaultsKey.sshKeyBookmarks)
+    }
+
+    /// Resolves a stored bookmark, starts security-scoped access, and returns the URL.
+    /// Caller is responsible for calling `url.stopAccessingSecurityScopedResource()` when done.
+    static func startAccessing(path: String) -> URL? {
+        guard let bookmarkData = storedBookmarks()[path] else { return nil }
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+
+        if isStale {
+            try? saveBookmark(for: url)
+        }
+
+        guard url.startAccessingSecurityScopedResource() else { return nil }
+        return url
+    }
+
+    private static func storedBookmarks() -> [String: Data] {
+        UserDefaults.standard.dictionary(forKey: DefaultsKey.sshKeyBookmarks) as? [String: Data] ?? [:]
+    }
+
+    // MARK: - Auth
 
     static func buildAuthMethod(
         keyPath: String,
@@ -37,10 +86,20 @@ enum SSHKeyManager {
         passphrase: String?
     ) throws -> SSHAuthenticationMethod {
         let keyString: String
-        do {
-            keyString = try String(contentsOfFile: keyPath, encoding: .utf8)
-        } catch {
-            throw SSHKeyError.keyReadFailed(path: keyPath, underlying: error)
+        // Try reading via security-scoped bookmark first, fall back to direct read
+        if let scopedURL = startAccessing(path: keyPath) {
+            defer { scopedURL.stopAccessingSecurityScopedResource() }
+            do {
+                keyString = try String(contentsOf: scopedURL, encoding: .utf8)
+            } catch {
+                throw SSHKeyError.keyReadFailed(path: keyPath, underlying: error)
+            }
+        } else {
+            do {
+                keyString = try String(contentsOfFile: keyPath, encoding: .utf8)
+            } catch {
+                throw SSHKeyError.keyReadFailed(path: keyPath, underlying: error)
+            }
         }
 
         let passphraseData = passphrase.flatMap { $0.isEmpty ? nil : $0.data(using: .utf8) }
