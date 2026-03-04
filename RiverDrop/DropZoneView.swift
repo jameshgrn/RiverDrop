@@ -92,9 +92,9 @@ struct DropZoneView: View {
         )
         .padding(.horizontal, RD.Spacing.sm)
         .padding(.vertical, RD.Spacing.sm)
-        .animation(.easeInOut(duration: 0.2), value: isTargeted)
+        .animation(.easeInOut(duration: 0.1), value: isTargeted)
         .onAppear {
-            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 breathe = true
             }
         }
@@ -119,7 +119,7 @@ struct DropZoneView: View {
                 Spacer()
 
                 Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(.easeOut(duration: 0.1)) {
                         stagedItems.removeAll()
                     }
                 } label: {
@@ -159,7 +159,7 @@ struct DropZoneView: View {
                 }
                 .padding(.horizontal, RD.Spacing.md)
                 .padding(.bottom, RD.Spacing.sm)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: stagedItems.count)
+                .animation(.spring(response: 0.16, dampingFraction: 0.82), value: stagedItems.count)
             }
         }
         .background(direction.color.opacity(0.03))
@@ -179,7 +179,7 @@ struct DropZoneView: View {
                 .foregroundStyle(.tertiary)
 
             Button {
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: 0.14, dampingFraction: 0.82)) {
                     stagedItems.removeAll { $0.id == item.id }
                 }
             } label: {

@@ -39,7 +39,7 @@ struct PaywallView: View {
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 8)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.35)) {
+            withAnimation(.easeOut(duration: 0.18)) {
                 appeared = true
             }
         }
@@ -62,7 +62,7 @@ struct PaywallView: View {
                 )
                 .shadow(color: .riverGlow.opacity(heroFloat ? 0.4 : 0.15), radius: heroFloat ? 18 : 10)
                 .offset(y: heroFloat ? -3 : 3)
-                .animation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true), value: heroFloat)
+                .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: heroFloat)
                 .padding(.bottom, RD.Spacing.xs)
                 .onAppear { heroFloat = true }
 

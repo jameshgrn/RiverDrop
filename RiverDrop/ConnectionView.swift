@@ -49,13 +49,13 @@ struct ConnectionView: View {
             .frame(maxWidth: 380)
             .opacity(appeared ? 1 : 0)
             .scaleEffect(appeared ? 1 : 0.98)
-            .animation(.easeOut(duration: 0.5), value: appeared)
+            .animation(.easeOut(duration: 0.2), value: appeared)
         }
         .frame(minWidth: 400, minHeight: 400)
         .onAppear {
             discoveredKeys = SSHKeyManager.discoverKeys()
             restoreSavedState()
-            withAnimation(.easeOut(duration: 0.5)) {
+            withAnimation(.easeOut(duration: 0.2)) {
                 appeared = true
             }
         }
@@ -105,7 +105,7 @@ struct ConnectionView: View {
                 )
                 .shadow(color: .riverGlow.opacity(heroGlow ? 0.5 : 0.15), radius: heroGlow ? 16 : 8)
                 .onAppear {
-                    withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                    withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                         heroGlow = true
                     }
                 }
@@ -144,7 +144,7 @@ struct ConnectionView: View {
                     sshKeySection
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: authMode)
+            .animation(.easeInOut(duration: 0.1), value: authMode)
         }
     }
 
@@ -156,7 +156,7 @@ struct ConnectionView: View {
         HStack(spacing: 0) {
             ForEach(AuthMode.allCases, id: \.self) { mode in
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
                         authMode = mode
                     }
                 } label: {

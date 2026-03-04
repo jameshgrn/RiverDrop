@@ -637,8 +637,8 @@ struct MainView: View {
                     : Color.clear,
             in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
         )
-        .animation(.easeOut(duration: 0.15), value: isHovered)
-        .animation(.easeOut(duration: 0.15), value: isSelected)
+        .animation(.easeOut(duration: 0.08), value: isHovered)
+        .animation(.easeOut(duration: 0.08), value: isSelected)
         .onHover { hovering in
             hoveredFileID = hovering ? file.id : nil
         }
@@ -680,7 +680,7 @@ struct MainView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: RD.Spacing.sm) {
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.16, dampingFraction: 0.85)) {
                         isTransferLogExpanded.toggle()
                     }
                 } label: {
@@ -688,7 +688,7 @@ struct MainView: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isTransferLogExpanded ? 90 : 0))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isTransferLogExpanded)
+                        .animation(.spring(response: 0.16, dampingFraction: 0.85), value: isTransferLogExpanded)
                         .frame(width: 14)
                 }
                 .buttonStyle(.borderless)
@@ -740,7 +740,7 @@ struct MainView: View {
         }
         .onChange(of: hasActiveTransfers) { _, active in
             if active {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.easeInOut(duration: 0.12)) {
                     isTransferLogExpanded = true
                 }
             }
@@ -774,7 +774,7 @@ struct MainView: View {
                         )
                         .frame(width: max(4, 80 * item.progress), height: 5)
                         .shadow(color: .riverAccent.opacity(0.3), radius: 3)
-                        .animation(.easeOut(duration: 0.3), value: item.progress)
+                        .animation(.easeOut(duration: 0.12), value: item.progress)
                 }
                 .frame(width: 80)
 
