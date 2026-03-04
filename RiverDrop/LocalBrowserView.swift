@@ -589,10 +589,14 @@ struct LocalBrowserView: View {
         }
         .onTapGesture(count: 1) {
             highlightFileName = nil
-            if isSelected {
-                selectedIDs.remove(file.id)
+            if NSEvent.modifierFlags.contains(.command) {
+                if isSelected {
+                    selectedIDs.remove(file.id)
+                } else {
+                    selectedIDs.insert(file.id)
+                }
             } else {
-                selectedIDs.insert(file.id)
+                selectedIDs = isSelected ? [] : [file.id]
             }
         }
         .contextMenu {

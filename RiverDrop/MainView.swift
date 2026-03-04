@@ -773,10 +773,14 @@ struct MainView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            if isSelected {
-                remoteSelectedIDs.remove(file.id)
+            if NSEvent.modifierFlags.contains(.command) {
+                if isSelected {
+                    remoteSelectedIDs.remove(file.id)
+                } else {
+                    remoteSelectedIDs.insert(file.id)
+                }
             } else {
-                remoteSelectedIDs.insert(file.id)
+                remoteSelectedIDs = isSelected ? [] : [file.id]
             }
         }
     }
