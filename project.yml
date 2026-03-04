@@ -27,4 +27,5 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.riverdrop.app
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         GENERATE_INFOPLIST_FILE: YES

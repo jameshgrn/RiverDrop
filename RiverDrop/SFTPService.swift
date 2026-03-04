@@ -148,24 +148,27 @@ final class SFTPService: ObservableObject {
         }
     }
 
+    #if APP_STORE
+    private func runKinitKlog() async -> Bool { false }
+    #else
     /// Runs kinit and klog locally to refresh credentials for academic/HPC users.
     private func runKinitKlog() async -> Bool {
         let kinitPath = "/usr/bin/kinit"
-        let klogPath = "/usr/bin/klog" // or common paths like /usr/local/bin/klog
+        let klogPath = "/usr/bin/klog"
 
-        let kinitSuccess = await runProcess(path: kinitPath, args: ["-R"]) // Try to renew
+        let kinitSuccess = await runProcess(path: kinitPath, args: ["-R"])
         let klogSuccess = await runProcess(path: klogPath, args: [])
-        
+
         return kinitSuccess || klogSuccess
     }
 
     private func runProcess(path: String, args: [String]) async -> Bool {
         guard FileManager.default.isExecutableFile(atPath: path) else { return false }
-        
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = args
-        
+
         do {
             try process.run()
             process.waitUntilExit()
@@ -174,6 +177,7 @@ final class SFTPService: ObservableObject {
             return false
         }
     }
+    #endif
 
     func listDirectory() async {
         guard !currentPath.isEmpty else {
