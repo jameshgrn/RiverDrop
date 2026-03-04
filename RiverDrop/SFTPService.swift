@@ -118,12 +118,20 @@ final class SFTPService: ObservableObject {
         }
 
         do {
-            currentPath = try await session.resolvePath(atPath: candidate)
+            let resolved = try await session.resolvePath(atPath: candidate)
+            let newFiles = try await session.listDirectory(atPath: resolved)
+            
+            currentPath = resolved
+            files = newFiles
+            errorMessage = nil
         } catch {
-            currentPath = candidate
+            errorMessage = formatError(
+                operation: "navigate to",
+                input: candidate,
+                error: error,
+                suggestedFix: "confirm the directory exists and you have read permissions"
+            )
         }
-
-        await listDirectory()
     }
 
     func executeCommand(_ command: String, mergeStreams: Bool = true) async throws -> String {
