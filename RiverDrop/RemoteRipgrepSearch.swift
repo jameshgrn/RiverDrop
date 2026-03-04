@@ -18,6 +18,8 @@ final class RemoteRipgrepSearch: ObservableObject {
     @Published var results: [RemoteRipgrepResult] = []
     @Published var isSearching = false
     @Published var errorMessage: String?
+    @Published var maxCount: Int = 100
+    @Published var maxColumns: Int = 200
 
     private var searchTask: Task<Void, Never>?
 
@@ -38,7 +40,7 @@ final class RemoteRipgrepSearch: ObservableObject {
 
             // Use --json for structured parsing; suppress stderr for clean output;
             // append exit code so we can distinguish no-matches (1) from errors (2+).
-            let rgCommand = "rg --json --max-count 100 --max-columns 200 -- '\(escapedQuery)' '\(escapedDir)' 2>/dev/null"
+            let rgCommand = "rg --json --max-count \(maxCount) --max-columns \(maxColumns) -- '\(escapedQuery)' '\(escapedDir)' 2>/dev/null"
             let command = "(\(rgCommand)); echo $?"
 
             let output: String
