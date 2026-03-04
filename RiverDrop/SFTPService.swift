@@ -17,6 +17,14 @@ final class SFTPService: ObservableObject {
     private let session = SFTPSession()
 
     func connect(host: String, username: String, password: String) async {
+        await connect(host: host, username: username, auth: .password(password))
+    }
+
+    func connect(host: String, username: String, keyPath: String, passphrase: String?) async {
+        await connect(host: host, username: username, auth: .sshKey(keyPath: keyPath, passphrase: passphrase))
+    }
+
+    private func connect(host: String, username: String, auth: SSHAuthConfig) async {
         let knownHostKey = HostKeyStore.load(for: host)
         let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
 
@@ -24,7 +32,7 @@ final class SFTPService: ObservableObject {
             let resolvedHome = try await session.connect(
                 host: host,
                 username: username,
-                password: password,
+                auth: auth,
                 hostKeyValidator: .custom(validator)
             )
 
@@ -187,12 +195,24 @@ private actor SFTPSession {
     func connect(
         host: String,
         username: String,
-        password: String,
+        auth: SSHAuthConfig,
         hostKeyValidator: SSHHostKeyValidator
     ) async throws -> String {
+        let authMethod: SSHAuthenticationMethod
+        switch auth {
+        case let .password(password):
+            authMethod = .passwordBased(username: username, password: password)
+        case let .sshKey(keyPath, passphrase):
+            authMethod = try SSHKeyManager.buildAuthMethod(
+                keyPath: keyPath,
+                username: username,
+                passphrase: passphrase
+            )
+        }
+
         let client = try await SSHClient.connect(
             host: host,
-            authenticationMethod: .passwordBased(username: username, password: password),
+            authenticationMethod: authMethod,
             hostKeyValidator: hostKeyValidator,
             reconnect: .never
         )
