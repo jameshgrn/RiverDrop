@@ -63,24 +63,22 @@ struct DropZoneView: View {
 
     // MARK: - Empty State
 
-    @State private var breathe = false
-
     private var emptyDropZone: some View {
         HStack(spacing: RD.Spacing.sm) {
             Image(systemName: direction.emptyIcon)
                 .font(.system(size: 13))
-                .foregroundStyle(isTargeted ? direction.color : Color.secondary.opacity(breathe ? 0.5 : 0.3))
+                .foregroundStyle(isTargeted ? direction.color : .secondary.opacity(0.5))
 
             Text("Drop files to stage for \(direction.label.lowercased())")
                 .font(.system(size: 11))
-                .foregroundStyle(isTargeted ? direction.color : Color.secondary.opacity(breathe ? 0.5 : 0.3))
+                .foregroundStyle(isTargeted ? direction.color : .secondary.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
         .frame(height: 36)
         .background(
             RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
                 .strokeBorder(
-                    isTargeted ? direction.color.opacity(0.6) : Color.primary.opacity(breathe ? 0.1 : 0.05),
+                    isTargeted ? direction.color.opacity(0.6) : Color.primary.opacity(0.1),
                     style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
                 )
                 .background(
@@ -93,11 +91,6 @@ struct DropZoneView: View {
         .padding(.horizontal, RD.Spacing.sm)
         .padding(.vertical, RD.Spacing.sm)
         .animation(.easeInOut(duration: 0.1), value: isTargeted)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                breathe = true
-            }
-        }
     }
 
     // MARK: - Staged Files
