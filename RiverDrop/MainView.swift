@@ -105,6 +105,8 @@ struct MainView: View {
     @State private var remoteContentSearchQuery = ""
     @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
     @State private var isTransferLogExpanded = false
+    @State private var hoveredFileID: RemoteFileItem.ID?
+    @State private var stagedDownloads: [StagedItem] = []
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -131,6 +133,7 @@ struct MainView: View {
                     recentlyDownloaded: $recentlyDownloaded
                 )
                 .frame(minWidth: 250)
+
                 remoteBrowser
                     .frame(minWidth: 350)
             }
@@ -162,6 +165,8 @@ struct MainView: View {
 
     private var remoteBrowser: some View {
         VStack(spacing: 0) {
+            PaneHeader("Remote", icon: "server.rack", subtitle: sftpService.currentPath)
+            Divider()
             remoteToolbar
             Divider()
             remotePathBar
@@ -173,15 +178,11 @@ struct MainView: View {
             }
 
             if filteredRemoteFiles.isEmpty {
-                VStack(spacing: 4) {
-                    Image(systemName: remoteSearchText.isEmpty ? "folder" : "magnifyingglass")
-                        .font(.title2)
-                        .foregroundStyle(.tertiary)
-                    Text(remoteSearchText.isEmpty ? "Empty directory" : "No matches")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    remoteSearchText.isEmpty ? "Empty directory" : "No matches",
+                    icon: remoteSearchText.isEmpty ? "folder" : "magnifyingglass",
+                    subtitle: remoteSearchText.isEmpty ? nil : "Try a different search term"
+                )
             } else {
                 List {
                     ForEach(displayedRemoteFiles) { file in
@@ -208,12 +209,19 @@ struct MainView: View {
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: true))
             }
+
+            Divider()
+            DropZoneView(
+                direction: .download,
+                stagedItems: $stagedDownloads,
+                onTransferAll: downloadStaged
+            )
         }
         .overlay(
             isRemoteDropTargeted
-                ? RoundedRectangle(cornerRadius: 8)
+                ? RoundedRectangle(cornerRadius: RD.cornerRadius)
                     .strokeBorder(Color.green, lineWidth: 2)
-                    .background(Color.green.opacity(0.08))
+                    .background(Color.green.opacity(0.06))
                     .allowsHitTesting(false)
                 : nil
         )
@@ -247,42 +255,66 @@ struct MainView: View {
         }
     }
 
+    // MARK: - Remote Toolbar
+
     private var remoteToolbar: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: RD.Spacing.xs) {
             // Navigation group
-            Button {
-                Task { await sftpService.navigateTo("..") }
-            } label: {
-                Image(systemName: "chevron.left")
-            }
-            .help("Go up")
-            .disabled(sftpService.currentPath == "/")
+            Group {
+                Button {
+                    Task { await sftpService.navigateTo("..") }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .help("Go up")
+                .disabled(sftpService.currentPath == "/")
 
-            Button {
-                Task { await sftpService.listDirectory() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .help("Refresh")
+                Button {
+                    Task { await sftpService.listDirectory() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh")
 
-            Picker("", selection: $remoteRoot) {
-                ForEach(RemoteRoot.allCases, id: \.self) { root in
-                    Text(root.rawValue).tag(root)
+                Picker("", selection: $remoteRoot) {
+                    ForEach(RemoteRoot.allCases, id: \.self) { root in
+                        Text(root.rawValue).tag(root)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .onChange(of: remoteRoot) { _, newValue in
+                    Task { await navigateRemoteTo(pathForRoot(newValue)) }
                 }
             }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            .onChange(of: remoteRoot) { _, newValue in
-                Task { await navigateRemoteTo(pathForRoot(newValue)) }
-            }
+            .frame(height: 24)
 
             Divider()
                 .frame(height: 16)
 
-            // Search group
-            TextField("Filter...", text: $remoteSearchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 140)
+            // Search
+            HStack(spacing: 2) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                TextField("Filter...", text: $remoteSearchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                if !remoteSearchText.isEmpty {
+                    Button {
+                        remoteSearchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+            .frame(maxWidth: 150)
 
             Button {
                 if storeManager.isPro {
@@ -296,6 +328,7 @@ struct MainView: View {
             } label: {
                 Image(systemName: "doc.text.magnifyingglass")
             }
+            .frame(width: 28, height: 24)
             .help("Remote content search (rg)")
 
             Spacer()
@@ -303,11 +336,20 @@ struct MainView: View {
             // Actions group
             if !remoteSelectedIDs.isEmpty {
                 Button {
+                    stageSelectedFiles()
+                } label: {
+                    Image(systemName: "tray.and.arrow.down")
+                }
+                .frame(width: 28, height: 24)
+                .help("Stage \(selectedRemoteFiles.count) selected for download")
+
+                Button {
                     remoteSelectedIDs = []
                 } label: {
                     Image(systemName: "xmark.circle")
                 }
                 .buttonStyle(.borderless)
+                .frame(width: 28, height: 24)
                 .help("Deselect all")
             }
 
@@ -316,6 +358,7 @@ struct MainView: View {
             } label: {
                 Image(systemName: "arrow.down.circle.fill")
             }
+            .frame(width: 28, height: 24)
             .disabled(selectedRemoteFiles.isEmpty)
             .help(selectedRemoteFiles.isEmpty ? "Download selected" : "Download \(selectedRemoteFiles.count) selected")
 
@@ -325,6 +368,7 @@ struct MainView: View {
                 Image(systemName: "doc.on.clipboard")
             }
             .buttonStyle(.borderless)
+            .frame(width: 28, height: 24)
             .help("Copy remote path")
 
             Button {
@@ -346,58 +390,59 @@ struct MainView: View {
                     Image(systemName: "eye")
                 }
             }
+            .frame(width: 28, height: 24)
             .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
             .help("Preview rsync changes")
 
             Divider()
                 .frame(height: 16)
 
-            Text(hasMoreRemoteFiles
-                ? "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
-                : "\(filteredRemoteFiles.count) items")
-                .font(.caption2)
-                .foregroundStyle(.quaternary)
+            StatusBadge(
+                text: hasMoreRemoteFiles
+                    ? "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
+                    : "\(filteredRemoteFiles.count) items",
+                color: .secondary
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, RD.Spacing.sm)
+        .padding(.vertical, RD.Spacing.xs + 2)
     }
+
+    // MARK: - Remote Path Bar
 
     private var remotePathBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(remotePathComponents, id: \.path) { component in
-                    Button(component.name) {
-                        Task { await navigateRemoteTo(component.path) }
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-
-                    if component.path != sftpService.currentPath {
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+        BreadcrumbView(
+            components: remotePathComponents.map { ($0.name, $0.path) },
+            onNavigate: { path in
+                Task { await navigateRemoteTo(path) }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-        }
-        .background(Color(nsColor: .controlBackgroundColor))
+        )
     }
 
+    // MARK: - Content Search Panel
+
     private var remoteContentSearchPanel: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                TextField("Search file contents...", text: $remoteContentSearchQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                        remoteRipgrepSearch.search(
-                            query: remoteContentSearchQuery,
-                            in: sftpService.currentPath,
-                            via: sftpService
-                        )
-                    }
+        VStack(alignment: .leading, spacing: RD.Spacing.sm) {
+            HStack(spacing: RD.Spacing.xs) {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    TextField("Search file contents...", text: $remoteContentSearchQuery)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .onSubmit {
+                            guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                            remoteRipgrepSearch.search(
+                                query: remoteContentSearchQuery,
+                                in: sftpService.currentPath,
+                                via: sftpService
+                            )
+                        }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
 
                 if remoteRipgrepSearch.isSearching {
                     Button {
@@ -416,30 +461,27 @@ struct MainView: View {
                             via: sftpService
                         )
                     } label: {
-                        Image(systemName: "magnifyingglass")
+                        Image(systemName: "arrow.right.circle.fill")
+                            .foregroundStyle(Color.riverPrimary)
                     }
                     .buttonStyle(.borderless)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
 
             if let error = remoteRipgrepSearch.errorMessage {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
-                    .padding(.horizontal, 8)
             }
 
             if remoteRipgrepSearch.isSearching {
-                HStack {
+                HStack(spacing: RD.Spacing.sm) {
                     ProgressView()
                         .controlSize(.small)
                     Text("Searching...")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 8)
             }
 
             if !remoteRipgrepSearch.results.isEmpty {
@@ -447,20 +489,23 @@ struct MainView: View {
                     Button {
                         Task { await navigateRemoteTo(result.directoryPath) }
                     } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(result.filePath)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            HStack(spacing: 4) {
-                                Text("L\(result.lineNumber)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .monospacedDigit()
-                                Text(result.content)
-                                    .font(.caption)
+                        HStack(spacing: RD.Spacing.sm) {
+                            FileIconView(filename: result.filePath, isDirectory: false, size: 13)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.filePath)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
                                     .lineLimit(1)
+                                    .truncationMode(.middle)
+                                HStack(spacing: 4) {
+                                    Text("L\(result.lineNumber)")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                    Text(result.content)
+                                        .font(.system(size: 11))
+                                        .lineLimit(1)
+                                }
                             }
                         }
                     }
@@ -470,7 +515,8 @@ struct MainView: View {
                 .frame(maxHeight: 200)
             }
         }
-        .padding(.bottom, 4)
+        .padding(RD.Spacing.sm)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
     }
 
     private var remotePathComponents: [(name: String, path: String)] {
@@ -511,6 +557,8 @@ struct MainView: View {
         remoteDisplayLimit = 200
     }
 
+    // MARK: - Remote File Rows
+
     private func remoteFolderRow(_ file: RemoteFileItem) -> some View {
         Button {
             Task {
@@ -520,48 +568,64 @@ struct MainView: View {
                 remoteDisplayLimit = 200
             }
         } label: {
-            HStack {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(.blue)
+            HStack(spacing: RD.Spacing.sm) {
+                FileIconView(filename: file.filename, isDirectory: true, size: 15)
+
                 Text(file.filename)
+                    .font(.system(size: 13))
                     .lineLimit(1)
+
                 Spacer()
+
                 if let date = file.modificationDate {
                     Text(date, style: .date)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                 }
+
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.quaternary)
             }
+            .padding(.vertical, 1)
         }
         .buttonStyle(.plain)
     }
 
     private func remoteFileRow(_ file: RemoteFileItem) -> some View {
         let isSelected = remoteSelectedIDs.contains(file.id)
-        return HStack {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-
-            Image(systemName: "doc.fill")
-                .foregroundStyle(.secondary)
+        let isHovered = hoveredFileID == file.id
+        return HStack(spacing: RD.Spacing.sm) {
+            FileIconView(filename: file.filename, isDirectory: false, size: 15)
 
             Text(file.filename)
+                .font(.system(size: 13))
                 .lineLimit(1)
 
             Spacer()
 
             Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.tertiary)
 
             if let date = file.modificationDate {
                 Text(date, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
             }
+        }
+        .padding(.vertical, 1)
+        .padding(.horizontal, isSelected ? RD.Spacing.xs : 0)
+        .background(
+            isSelected
+                ? Color.accentColor.opacity(0.12)
+                : isHovered
+                    ? Color.primary.opacity(0.03)
+                    : Color.clear,
+            in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+        )
+        .onHover { hovering in
+            hoveredFileID = hovering ? file.id : nil
         }
         .onDrag {
             remoteDragProvider(for: file)
@@ -599,30 +663,30 @@ struct MainView: View {
 
     private var transferLog: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
+            // Header
+            HStack(spacing: RD.Spacing.sm) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
                         isTransferLogExpanded.toggle()
                     }
                 } label: {
-                    Image(systemName: isTransferLogExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 12)
+                        .rotationEffect(.degrees(isTransferLogExpanded ? 90 : 0))
+                        .animation(.easeInOut(duration: 0.2), value: isTransferLogExpanded)
+                        .frame(width: 14)
                 }
                 .buttonStyle(.borderless)
 
                 Image(systemName: "arrow.up.arrow.down")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.riverPrimary)
 
                 Text("Transfers")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.system(size: 12, weight: .semibold))
 
-                Text(transferSummary)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                StatusBadge(text: transferSummary, color: hasActiveTransfers ? .riverAccent : .secondary)
 
                 Spacer()
 
@@ -636,53 +700,114 @@ struct MainView: View {
                         transferManager.transfers.removeAll(where: { $0.status != .inProgress })
                     } label: {
                         Image(systemName: "trash")
-                            .font(.caption)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.borderless)
                     .help("Clear completed transfers")
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, RD.Spacing.md)
+            .padding(.vertical, RD.Spacing.sm)
 
             if isTransferLogExpanded && !transferManager.transfers.isEmpty {
                 Divider()
-                List(transferManager.transfers) { item in
-                    HStack {
-                        Image(systemName: item.isUpload ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                            .foregroundStyle(item.isUpload ? .green : .blue)
-                        Text(item.filename)
-                            .lineLimit(1)
-                            .font(.caption)
-                        Spacer()
-                        if item.status == .inProgress {
-                            ProgressView(value: item.progress)
-                                .frame(width: 80)
-                            Text("\(Int(item.progress * 100))%")
-                                .font(.caption2)
-                                .monospacedDigit()
-                                .frame(width: 30, alignment: .trailing)
-                            Button {
-                                transferManager.cancelTransfer(id: item.id)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.red)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Cancel transfer")
-                        } else {
-                            Text(item.status.rawValue)
-                                .font(.caption2)
-                                .foregroundStyle(transferStatusColor(for: item.status))
+                ScrollView {
+                    LazyVStack(spacing: RD.Spacing.xs) {
+                        ForEach(transferManager.transfers) { item in
+                            transferRow(item)
                         }
                     }
+                    .padding(RD.Spacing.sm)
                 }
-                .listStyle(.inset)
                 .frame(minHeight: 60, maxHeight: 150)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .onChange(of: hasActiveTransfers) { _, active in
-            if active { isTransferLogExpanded = true }
+            if active {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isTransferLogExpanded = true
+                }
+            }
+        }
+    }
+
+    private func transferRow(_ item: TransferItem) -> some View {
+        HStack(spacing: RD.Spacing.sm) {
+            Image(systemName: item.isUpload ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(item.isUpload ? .green : .blue)
+
+            Text(item.filename)
+                .lineLimit(1)
+                .font(.system(size: 12))
+
+            Spacer()
+
+            if item.status == .inProgress {
+                // Pill-shaped progress
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(width: 80, height: 6)
+                    Capsule()
+                        .fill(Color.riverAccent.gradient)
+                        .frame(width: max(4, 80 * item.progress), height: 6)
+                }
+                .frame(width: 80)
+
+                Text("\(Int(item.progress * 100))%")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, alignment: .trailing)
+
+                Button {
+                    transferManager.cancelTransfer(id: item.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red.opacity(0.7))
+                }
+                .buttonStyle(.borderless)
+                .help("Cancel transfer")
+            } else {
+                transferStatusView(item.status)
+            }
+        }
+        .padding(.horizontal, RD.Spacing.sm)
+        .padding(.vertical, RD.Spacing.xs)
+        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+    }
+
+    @ViewBuilder
+    private func transferStatusView(_ status: TransferItem.TransferStatus) -> some View {
+        switch status {
+        case .completed:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.green)
+                StatusBadge(text: "Done", color: .green)
+            }
+        case .failed:
+            HStack(spacing: 4) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                StatusBadge(text: "Failed", color: .red)
+            }
+        case .cancelled:
+            HStack(spacing: 4) {
+                Image(systemName: "pause.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange)
+                StatusBadge(text: "Cancelled", color: .orange)
+            }
+        case .skipped:
+            StatusBadge(text: "Skipped", color: .secondary)
+        case .inProgress:
+            EmptyView()
         }
     }
 
@@ -727,6 +852,35 @@ struct MainView: View {
         remoteSelectedIDs = []
     }
 
+    private func stageSelectedFiles() {
+        for file in selectedRemoteFiles where !file.isDirectory {
+            let staged = StagedItem(
+                filename: file.filename,
+                size: file.size,
+                source: .remote(fullRemotePath(for: file.filename))
+            )
+            stagedDownloads.append(staged)
+        }
+        remoteSelectedIDs = []
+    }
+
+    private func downloadStaged() {
+        for item in stagedDownloads {
+            switch item.source {
+            case let .remote(remotePath):
+                transferManager.downloadRemotePathToDirectory(
+                    remotePath: remotePath,
+                    filename: item.filename,
+                    size: item.size,
+                    localDir: localCurrentDirectory
+                )
+            case .local:
+                break
+            }
+        }
+        stagedDownloads = []
+    }
+
     private func remoteDragProvider(for file: RemoteFileItem) -> NSItemProvider {
         let payload = RemoteDragPayload(
             remotePath: fullRemotePath(for: file.filename),
@@ -756,21 +910,6 @@ struct MainView: View {
             return sftpService.currentPath + filename
         }
         return sftpService.currentPath + "/" + filename
-    }
-
-    private func transferStatusColor(for status: TransferItem.TransferStatus) -> Color {
-        switch status {
-        case .completed:
-            return .green
-        case .failed:
-            return .red
-        case .skipped:
-            return .secondary
-        case .inProgress:
-            return .primary
-        case .cancelled:
-            return .orange
-        }
     }
 
     // MARK: - Clipboard

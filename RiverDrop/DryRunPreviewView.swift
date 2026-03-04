@@ -11,8 +11,7 @@ struct DryRunPreviewView: View {
             Divider()
 
             if result.isEmpty {
-                ContentUnavailableView("Everything is in sync", systemImage: "checkmark.circle")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView("Everything in sync", icon: "checkmark.circle", subtitle: "No changes needed")
             } else {
                 fileList
             }
@@ -20,111 +19,147 @@ struct DryRunPreviewView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusLarge))
+        .frame(minWidth: 520, minHeight: 420)
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack {
-            Text("Sync Preview")
-                .font(.headline)
-            Spacer()
-            Text(summaryText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if result.totalBytes > 0 {
-                Text("(\(ByteCountFormatter.string(fromByteCount: result.totalBytes, countStyle: .file)))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(spacing: RD.Spacing.sm) {
+            PaneHeader("Sync Preview", icon: "arrow.triangle.2.circlepath")
+
+            HStack(spacing: RD.Spacing.sm) {
+                StatusBadge(text: "\(result.added.count) added", color: .green)
+                StatusBadge(text: "\(result.modified.count) modified", color: .orange)
+                StatusBadge(text: "\(result.deleted.count) deleted", color: .red)
+
+                Spacer()
+
+                if result.totalBytes > 0 {
+                    Text(ByteCountFormatter.string(fromByteCount: result.totalBytes, countStyle: .file))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(.horizontal, RD.Spacing.md)
+            .padding(.bottom, RD.Spacing.sm)
         }
-        .padding()
     }
 
     // MARK: - File List
 
     private var fileList: some View {
-        List {
-            if !result.added.isEmpty {
-                Section {
-                    ForEach(result.added) { entry in
-                        fileRow(entry, color: .green, icon: "plus.circle.fill")
-                    }
-                } header: {
-                    Label("Added (\(result.added.count))", systemImage: "plus.circle")
-                        .foregroundStyle(.green)
+        ScrollView {
+            VStack(spacing: RD.Spacing.lg) {
+                if !result.added.isEmpty {
+                    fileSection(
+                        title: "Added",
+                        icon: "plus.circle.fill",
+                        color: .green,
+                        entries: result.added
+                    )
+                }
+
+                if !result.modified.isEmpty {
+                    fileSection(
+                        title: "Modified",
+                        icon: "pencil.circle.fill",
+                        color: .orange,
+                        entries: result.modified
+                    )
+                }
+
+                if !result.deleted.isEmpty {
+                    fileSection(
+                        title: "Deleted",
+                        icon: "minus.circle.fill",
+                        color: .red,
+                        entries: result.deleted
+                    )
                 }
             }
+            .padding(RD.Spacing.md)
+        }
+    }
 
-            if !result.modified.isEmpty {
-                Section {
-                    ForEach(result.modified) { entry in
-                        fileRow(entry, color: .orange, icon: "pencil.circle.fill")
-                    }
-                } header: {
-                    Label("Modified (\(result.modified.count))", systemImage: "pencil.circle")
-                        .foregroundStyle(.orange)
+    private func fileSection(title: String, icon: String, color: Color, entries: [DryRunFileEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: RD.Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(color)
+                Text("\(title) (\(entries.count))")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(color)
+            }
+            .padding(.horizontal, RD.Spacing.md)
+            .padding(.vertical, RD.Spacing.sm)
+
+            VStack(spacing: 0) {
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    fileRow(entry)
+                        .padding(.horizontal, RD.Spacing.md)
+                        .padding(.vertical, RD.Spacing.sm)
+                        .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.02))
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+            .overlay(
+                RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
+        }
+    }
 
-            if !result.deleted.isEmpty {
-                Section {
-                    ForEach(result.deleted) { entry in
-                        fileRow(entry, color: .red, icon: "minus.circle.fill")
-                    }
-                } header: {
-                    Label("Deleted (\(result.deleted.count))", systemImage: "minus.circle")
-                        .foregroundStyle(.red)
-                }
+    private func fileRow(_ entry: DryRunFileEntry) -> some View {
+        HStack(spacing: RD.Spacing.sm) {
+            FileIconView(
+                filename: (entry.path as NSString).lastPathComponent,
+                isDirectory: entry.path.hasSuffix("/"),
+                size: 14
+            )
+
+            Text(entry.path)
+                .font(.system(size: 12, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer(minLength: 0)
+
+            if entry.size > 0 {
+                Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
             }
         }
-        .listStyle(.inset(alternatesRowBackgrounds: true))
     }
 
     // MARK: - Footer
 
     private var footer: some View {
         HStack {
-            Button("Cancel", role: .cancel) {
+            Button("Cancel") {
                 onCancel()
             }
+            .buttonStyle(.borderless)
             .keyboardShortcut(.cancelAction)
 
             Spacer()
 
-            Button("Sync") {
+            Button {
                 onConfirm()
+            } label: {
+                Text("Sync \(result.totalFiles) files")
             }
+            .buttonStyle(RDButtonStyle(isProminent: true))
             .keyboardShortcut(.defaultAction)
             .disabled(result.isEmpty)
         }
-        .padding()
-    }
-
-    // MARK: - Helpers
-
-    private func fileRow(_ entry: DryRunFileEntry, color: Color, icon: String) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-            Text(entry.path)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer()
-            if entry.size > 0 {
-                Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var summaryText: String {
-        var parts: [String] = []
-        if !result.added.isEmpty { parts.append("\(result.added.count) added") }
-        if !result.modified.isEmpty { parts.append("\(result.modified.count) modified") }
-        if !result.deleted.isEmpty { parts.append("\(result.deleted.count) deleted") }
-        return parts.isEmpty ? "No changes" : parts.joined(separator: ", ")
+        .padding(.horizontal, RD.Spacing.lg)
+        .padding(.vertical, RD.Spacing.md)
     }
 }

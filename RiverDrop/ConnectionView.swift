@@ -16,6 +16,7 @@ struct ConnectionView: View {
     @State private var passphrase = ""
     @State private var discoveredKeys: [SSHKeyInfo] = []
     @State private var isConnecting = false
+    @State private var appeared = false
 
     private var canConnect: Bool {
         guard !host.isEmpty, !username.isEmpty, !isConnecting else { return false }
@@ -28,92 +29,257 @@ struct ConnectionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("RiverDrop")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+        ZStack {
+            backgroundGradient
 
-            Text("SFTP File Transfer")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(spacing: RD.Spacing.xl) {
+                heroSection
 
-            Divider()
+                formSection
+                    .disabled(isConnecting)
+                    .opacity(isConnecting ? 0.5 : 1)
 
-            Form {
-                TextField("Host", text: $host)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Username", text: $username)
-                    .textFieldStyle(.roundedBorder)
-
-                Picker("Auth", selection: $authMode) {
-                    ForEach(AuthMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
+                if let error = sftpService.errorMessage {
+                    errorCard(error)
                 }
-                .pickerStyle(.segmented)
 
-                switch authMode {
-                case .password:
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(.roundedBorder)
-                case .sshKey:
-                    HStack {
-                        Picker("Key", selection: $sshKeyPath) {
-                            Text("Select a key...").tag("")
-                            ForEach(discoveredKeys) { key in
-                                Text(key.filename).tag(key.path)
-                            }
-                        }
-                        .frame(minWidth: 140)
-
-                        Button("Browse...") { browseForKey() }
-                    }
-
-                    if !sshKeyPath.isEmpty {
-                        Text(sshKeyPath)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-
-                    SecureField("Passphrase (optional)", text: $passphrase)
-                        .textFieldStyle(.roundedBorder)
-                }
+                connectButton
             }
-            .formStyle(.grouped)
-            .frame(maxWidth: 350)
-
-            if let error = sftpService.errorMessage {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-            }
-
-            Button {
-                performConnect()
-            } label: {
-                if isConnecting {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 120)
-                } else {
-                    Text("Connect")
-                        .frame(width: 120)
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canConnect)
-            .keyboardShortcut(.defaultAction)
+            .cardStyle(padding: RD.Spacing.xxl)
+            .frame(maxWidth: 380)
+            .opacity(appeared ? 1 : 0)
+            .scaleEffect(appeared ? 1 : 0.98)
+            .animation(.easeOut(duration: 0.5), value: appeared)
         }
-        .padding(40)
         .frame(minWidth: 400, minHeight: 400)
         .onAppear {
             discoveredKeys = SSHKeyManager.discoverKeys()
             restoreSavedState()
+            withAnimation(.easeOut(duration: 0.5)) {
+                appeared = true
+            }
         }
     }
+
+    // MARK: - Background
+
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: [
+                Color.riverPrimary.opacity(0.08),
+                Color.riverPrimary.opacity(0.02),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    // MARK: - Hero
+
+    private var heroSection: some View {
+        VStack(spacing: RD.Spacing.sm) {
+            Image(systemName: "drop.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.riverPrimary, .riverAccent],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Text("RiverDrop")
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+
+            Text("Secure File Transfer")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Form
+
+    private var formSection: some View {
+        VStack(spacing: RD.Spacing.md) {
+            SectionHeader("Server", icon: "server.rack")
+
+            inputField(icon: "globe", placeholder: "Host", text: $host)
+            inputField(icon: "person", placeholder: "Username", text: $username)
+
+            Spacer().frame(height: RD.Spacing.xs)
+
+            SectionHeader("Authentication", icon: "lock.shield")
+
+            authModePicker
+
+            Group {
+                switch authMode {
+                case .password:
+                    secureInputField(icon: "key", placeholder: "Password", text: $password)
+                case .sshKey:
+                    sshKeySection
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: authMode)
+        }
+    }
+
+    // MARK: - Auth Mode Picker
+
+    private var authModePicker: some View {
+        HStack(spacing: 0) {
+            ForEach(AuthMode.allCases, id: \.self) { mode in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        authMode = mode
+                    }
+                } label: {
+                    HStack(spacing: RD.Spacing.xs) {
+                        Image(systemName: mode == .password ? "key.fill" : "key.radiowaves.forward")
+                            .font(.system(size: 11))
+                        Text(mode.rawValue)
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(authMode == mode ? .white : .secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, RD.Spacing.sm)
+                    .background {
+                        if authMode == mode {
+                            Capsule()
+                                .fill(Color.riverPrimary)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Color.primary.opacity(0.06), in: Capsule())
+    }
+
+    // MARK: - SSH Key Section
+
+    private var sshKeySection: some View {
+        VStack(spacing: RD.Spacing.sm) {
+            HStack(spacing: RD.Spacing.sm) {
+                Image(systemName: "key.viewfinder")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+
+                Picker("", selection: $sshKeyPath) {
+                    Text("Select a key\u{2026}").tag("")
+                    ForEach(discoveredKeys) { key in
+                        Text(key.filename).tag(key.path)
+                    }
+                }
+                .labelsHidden()
+
+                Button("Browse\u{2026}") { browseForKey() }
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.riverPrimary)
+            }
+            .padding(RD.Spacing.md)
+            .background(Color.primary.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+
+            if !sshKeyPath.isEmpty {
+                HStack(spacing: RD.Spacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.green)
+                    Text(sshKeyPath)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .padding(.horizontal, RD.Spacing.sm)
+                .padding(.vertical, RD.Spacing.xs)
+                .background(Color.green.opacity(0.08), in: Capsule())
+            }
+
+            secureInputField(icon: "lock", placeholder: "Passphrase (optional)", text: $passphrase)
+        }
+    }
+
+    // MARK: - Input Fields
+
+    private func inputField(icon: String, placeholder: String, text: Binding<String>) -> some View {
+        HStack(spacing: RD.Spacing.sm) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.plain)
+        }
+        .padding(RD.Spacing.md)
+        .background(Color.primary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+    }
+
+    private func secureInputField(icon: String, placeholder: String, text: Binding<String>) -> some View {
+        HStack(spacing: RD.Spacing.sm) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            SecureField(placeholder, text: text)
+                .textFieldStyle(.plain)
+        }
+        .padding(RD.Spacing.md)
+        .background(Color.primary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+    }
+
+    // MARK: - Error Card
+
+    private func errorCard(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: RD.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red.opacity(0.8))
+                .font(.system(size: 13))
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(RD.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.red.opacity(0.06), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+        .overlay(
+            RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                .strokeBorder(Color.red.opacity(0.12), lineWidth: 0.5)
+        )
+    }
+
+    // MARK: - Connect Button
+
+    private var connectButton: some View {
+        Button {
+            performConnect()
+        } label: {
+            HStack(spacing: RD.Spacing.sm) {
+                if isConnecting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                } else {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 12))
+                }
+                Text(isConnecting ? "Connecting\u{2026}" : "Connect")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(RDButtonStyle(isProminent: true))
+        .disabled(!canConnect)
+        .opacity(canConnect ? 1 : 0.4)
+        .keyboardShortcut(.defaultAction)
+    }
+
+    // MARK: - Actions
 
     private func performConnect() {
         isConnecting = true

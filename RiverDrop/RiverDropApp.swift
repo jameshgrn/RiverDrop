@@ -26,7 +26,8 @@ struct RiverDropApp: App {
             .environmentObject(sftpService)
             .environmentObject(transferManager)
             .environmentObject(storeManager)
-            .frame(minWidth: 700, minHeight: 500)
+            .frame(minWidth: 800, minHeight: 550)
         }
+        .windowToolbarStyle(.unified(showsTitle: false))
     }
 }

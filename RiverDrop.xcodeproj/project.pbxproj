@@ -24,6 +24,8 @@
 		F5A6B7C8D9E01142637A8B9C /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */; };
 		E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */; };
 		F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */; };
+		A1B2C3D4E5F6071829DSGN01 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */; };
+		A1B2C3D4E5F6071829DRPZ01 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */; };
 		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
 /* End PBXBuildFile section */
 
@@ -48,6 +50,8 @@
 		F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		3C4D5E6F70819204B5C6E0F1 /* RiverDrop.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = RiverDrop.storekit; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +79,8 @@
 			children = (
 				43E55F09D483C9B50F4EB55B /* ConnectionView.swift */,
 				7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */,
+				A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */,
+				A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */,
 				F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */,
 				F92F4E94228FEDA36172E00B /* KeychainHelper.swift */,
 				E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */,
@@ -169,6 +175,8 @@
 			files = (
 				502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */,
 				4A5B6C7D8E9F0123456789CD /* DefaultsKey.swift in Sources */,
+				A1B2C3D4E5F6071829DSGN01 /* DesignSystem.swift in Sources */,
+				A1B2C3D4E5F6071829DRPZ01 /* DropZoneView.swift in Sources */,
 				D4E5F6A7B8C90D23456789AB /* DryRunPreviewView.swift in Sources */,
 				6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */,
 				C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */,

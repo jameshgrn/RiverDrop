@@ -28,6 +28,7 @@ struct LocalBrowserView: View {
     @State private var showRenameAlert = false
     @State private var itemToRename: LocalFileItem?
     @State private var renameText = ""
+    @State private var stagedUploads: [StagedItem] = []
 
     private static let bookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -49,24 +50,34 @@ struct LocalBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            PaneHeader("Local", icon: "laptopcomputer", subtitle: localCurrentDirectory.lastPathComponent)
             toolbar
             Divider()
-            pathBar
+            BreadcrumbView(
+                components: pathComponents.map { ($0.name, $0.url) },
+                onNavigate: { navigateTo($0) }
+            )
             Divider()
             if showContentSearch {
                 contentSearchPanel
                 Divider()
             }
             fileList
+            Divider()
+            DropZoneView(direction: .upload, stagedItems: $stagedUploads, onTransferAll: uploadStaged)
         }
-        .overlay(
-            isDropTargeted
-                ? RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .background(Color.accentColor.opacity(0.08))
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: RD.cornerRadius)
+                    .fill(Color.green.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: RD.cornerRadius)
+                            .strokeBorder(Color.green.opacity(0.4), lineWidth: 1.5)
+                    )
+                    .shadow(color: Color.green.opacity(0.15), radius: 8)
                     .allowsHitTesting(false)
-                : nil
-        )
+            }
+        }
         .onDrop(of: [.fileURL, RiverDropDragType.remoteFile], isTargeted: $isDropTargeted) { providers in
             handleLocalDrop(providers)
             return true
@@ -115,19 +126,19 @@ struct LocalBrowserView: View {
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: RD.Spacing.xs) {
             // Navigation group
-            Button {
-                navigateTo(localCurrentDirectory.deletingLastPathComponent())
-            } label: {
+            Button { navigateTo(localCurrentDirectory.deletingLastPathComponent()) } label: {
                 Image(systemName: "chevron.left")
             }
+            .frame(width: 28, height: 24)
             .help("Go up")
             .disabled(localCurrentDirectory.path == "/")
 
             Button { loadDirectory() } label: {
                 Image(systemName: "arrow.clockwise")
             }
+            .frame(width: 28, height: 24)
             .help("Refresh")
 
             Menu {
@@ -137,7 +148,7 @@ struct LocalBrowserView: View {
                     }
                 }
                 Divider()
-                Button("Choose Folder...") {
+                Button("Choose Folder\u{2026}") {
                     openPanel()
                 }
             } label: {
@@ -148,12 +159,26 @@ struct LocalBrowserView: View {
             .help("Bookmarks")
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
+                .padding(.horizontal, 2)
 
             // Search group
-            TextField("Filter...", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 140)
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                TextField("Filter\u{2026}", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+            }
+            .padding(.horizontal, RD.Spacing.sm)
+            .padding(.vertical, RD.Spacing.xs)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+            .overlay(
+                RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+            .frame(maxWidth: 160)
 
             Button {
                 if storeManager.isPro {
@@ -167,57 +192,69 @@ struct LocalBrowserView: View {
             } label: {
                 Image(systemName: "doc.text.magnifyingglass")
             }
+            .frame(width: 28, height: 24)
             .help(RipgrepSearch.isAvailable ? "Content search (rg)" : "ripgrep not installed")
             .disabled(!RipgrepSearch.isAvailable)
+
+            Divider()
+                .frame(height: 14)
+                .padding(.horizontal, 2)
 
             Spacer()
 
             // Actions group
             if !recentlyDownloaded.isEmpty {
-                Button {
-                    recentlyDownloaded = []
-                } label: {
+                Button { recentlyDownloaded = [] } label: {
                     Image(systemName: "sparkles")
                 }
                 .buttonStyle(.borderless)
+                .frame(width: 28, height: 24)
                 .help("Clear download highlights")
             }
 
             if !selectedIDs.isEmpty {
-                Button {
-                    selectedIDs = []
-                } label: {
+                Button { selectedIDs = [] } label: {
                     Image(systemName: "xmark.circle")
                 }
                 .buttonStyle(.borderless)
+                .frame(width: 28, height: 24)
                 .help("Deselect all")
             }
+
+            Button { stageSelectedForUpload() } label: {
+                Image(systemName: "tray.and.arrow.up")
+            }
+            .frame(width: 28, height: 24)
+            .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
+            .help("Stage selected for batch upload")
 
             Button { uploadSelected() } label: {
                 Image(systemName: "arrow.up.circle.fill")
             }
+            .frame(width: 28, height: 24)
             .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
             .help(selectedFiles.isEmpty ? "Upload selected" : "Upload \(selectedFiles.count) selected")
 
-            Button {
-                copyLocalPathToClipboard()
-            } label: {
+            Button { copyLocalPathToClipboard() } label: {
                 Image(systemName: "doc.on.clipboard")
             }
             .buttonStyle(.borderless)
+            .frame(width: 28, height: 24)
             .help("Copy local path")
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
+                .padding(.horizontal, 2)
 
-            Text(hasMoreFiles
-                ? "\(displayedFiles.count)/\(filteredFiles.count)"
-                : "\(filteredFiles.count) items")
-                .font(.caption2)
-                .foregroundStyle(.quaternary)
+            StatusBadge(
+                text: hasMoreFiles
+                    ? "\(displayedFiles.count)/\(filteredFiles.count)"
+                    : "\(filteredFiles.count) items",
+                color: .secondary
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, RD.Spacing.sm)
+        .padding(.vertical, RD.Spacing.xs + 1)
     }
 
     // MARK: - Content Search Panel
@@ -247,16 +284,27 @@ struct LocalBrowserView: View {
     }
 
     private var contentSearchPanel: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                TextField("Search file contents...", text: $contentSearchQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { runContentSearch() }
+        VStack(alignment: .leading, spacing: RD.Spacing.sm) {
+            HStack(spacing: RD.Spacing.sm) {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                    TextField("Search file contents\u{2026}", text: $contentSearchQuery)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .onSubmit { runContentSearch() }
+                }
+                .padding(.horizontal, RD.Spacing.sm)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+                .overlay(
+                    RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                )
 
                 if ripgrepSearch.isSearching {
-                    Button {
-                        ripgrepSearch.cancel()
-                    } label: {
+                    Button { ripgrepSearch.cancel() } label: {
                         Image(systemName: "stop.fill")
                             .foregroundStyle(.red)
                     }
@@ -264,20 +312,20 @@ struct LocalBrowserView: View {
                     .help("Cancel search")
                 } else {
                     Button { runContentSearch() } label: {
-                        Image(systemName: "magnifyingglass")
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10))
                     }
                     .buttonStyle(.borderless)
+                    .help("Run search")
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
 
-            HStack(spacing: 12) {
+            HStack(spacing: RD.Spacing.md) {
                 Toggle("Recursive", isOn: $isRecursiveSearch)
                     .toggleStyle(.checkbox)
                     .font(.caption)
 
-                HStack(spacing: 4) {
+                HStack(spacing: RD.Spacing.xs) {
                     Text("Types:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -287,57 +335,52 @@ struct LocalBrowserView: View {
                         .font(.caption)
                 }
             }
-            .padding(.horizontal, 8)
 
             if let error = ripgrepSearch.errorMessage {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
-                    .padding(.horizontal, 8)
             }
 
             if ripgrepSearch.isSearching {
-                HStack {
+                HStack(spacing: RD.Spacing.sm) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Searching...")
+                    Text("Searching\u{2026}")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 8)
             } else if ripgrepSearch.searchCompleted && ripgrepSearch.results.isEmpty {
                 Text("No results found")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
             }
 
             if !ripgrepSearch.results.isEmpty {
-                HStack {
-                    Text("\(ripgrepSearch.resultCount) match\(ripgrepSearch.resultCount == 1 ? "" : "es")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 8)
+                StatusBadge(
+                    text: "\(ripgrepSearch.resultCount) match\(ripgrepSearch.resultCount == 1 ? "" : "es")",
+                    color: .riverPrimary
+                )
 
                 List(ripgrepSearch.results) { result in
-                    Button {
-                        navigateToResult(result)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(ripgrepSearch.relativePath(for: result))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            HStack(spacing: 4) {
-                                Text("L\(result.lineNumber)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .monospacedDigit()
-                                Text(result.content)
+                    Button { navigateToResult(result) } label: {
+                        HStack(spacing: RD.Spacing.sm) {
+                            FileIconView(filename: result.fileName, isDirectory: false, size: 12)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ripgrepSearch.relativePath(for: result))
                                     .font(.caption)
+                                    .foregroundStyle(.secondary)
                                     .lineLimit(1)
+                                    .truncationMode(.middle)
+                                HStack(spacing: RD.Spacing.xs) {
+                                    Text("L\(result.lineNumber)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .monospacedDigit()
+                                    Text(result.content)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                }
                             }
                         }
                     }
@@ -347,32 +390,9 @@ struct LocalBrowserView: View {
                 .frame(maxHeight: 200)
             }
         }
-        .padding(.bottom, 4)
-    }
-
-    // MARK: - Path Bar
-
-    private var pathBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(pathComponents, id: \.url) { component in
-                    Button(component.name) {
-                        navigateTo(component.url)
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-
-                    if component.url != localCurrentDirectory {
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-        }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .padding(.horizontal, RD.Spacing.md)
+        .padding(.vertical, RD.Spacing.sm)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
     }
 
     // MARK: - File List
@@ -380,15 +400,11 @@ struct LocalBrowserView: View {
     private var fileList: some View {
         Group {
             if filteredFiles.isEmpty {
-                VStack(spacing: 4) {
-                    Image(systemName: searchText.isEmpty ? "folder" : "magnifyingglass")
-                        .font(.title2)
-                        .foregroundStyle(.tertiary)
-                    Text(searchText.isEmpty ? "Empty directory" : "No matches")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if searchText.isEmpty {
+                    EmptyStateView("Empty directory", icon: "folder", subtitle: "No files in this location")
+                } else {
+                    EmptyStateView("No matches", icon: "magnifyingglass", subtitle: "Try a different search term")
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(displayedFiles) { file in
@@ -403,7 +419,7 @@ struct LocalBrowserView: View {
                             Spacer()
                             ProgressView()
                                 .controlSize(.small)
-                            Text("Loading more...")
+                            Text("Loading more\u{2026}")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -430,23 +446,24 @@ struct LocalBrowserView: View {
     }
 
     private func folderRow(_ file: LocalFileItem) -> some View {
-        Button {
-            navigateTo(file.url)
-        } label: {
-            HStack {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(.blue)
+        Button { navigateTo(file.url) } label: {
+            HStack(spacing: RD.Spacing.sm) {
+                FileIconView(filename: file.filename, isDirectory: true)
+
                 Text(file.filename)
                     .lineLimit(1)
+
                 Spacer()
+
                 if let date = file.modificationDate {
-                    Text(date, style: .date)
+                    Text(date, style: .relative)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
+
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.quaternary)
             }
         }
         .buttonStyle(.plain)
@@ -473,44 +490,51 @@ struct LocalBrowserView: View {
         let isSelected = selectedIDs.contains(file.id)
         let isNew = recentlyDownloaded.contains(file.filename)
         let isHighlighted = highlightFileName == file.filename
-        return HStack {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
 
-            Image(systemName: "doc.fill")
-                .foregroundStyle(isNew ? .green : .secondary)
-
-            Text(file.filename)
-                .lineLimit(1)
-                .foregroundStyle(isNew ? .green : .primary)
-                .fontWeight(isNew ? .semibold : .regular)
-
+        return HStack(spacing: 0) {
             if isNew {
-                Text("NEW")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.green, in: Capsule())
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color.green)
+                    .frame(width: 3)
+                    .padding(.vertical, 2)
+                    .padding(.trailing, RD.Spacing.sm)
             }
 
-            Spacer()
+            HStack(spacing: RD.Spacing.sm) {
+                FileIconView(filename: file.filename, isDirectory: false)
 
-            Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text(file.filename)
+                    .lineLimit(1)
 
-            if let date = file.modificationDate {
-                Text(date, style: .date)
+                if isNew {
+                    StatusBadge(text: "New", color: .green)
+                }
+
+                Spacer()
+
+                Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+
+                if let date = file.modificationDate {
+                    Text(date, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .frame(minWidth: 60, alignment: .trailing)
+                }
             }
         }
         .onDrag {
             NSItemProvider(object: file.url as NSURL)
         }
-        .listRowBackground(isHighlighted ? Color.accentColor.opacity(0.15) : nil)
+        .listRowBackground(
+            isSelected
+                ? Color.accentColor.opacity(0.12)
+                : isHighlighted
+                    ? Color.accentColor.opacity(0.08)
+                    : nil
+        )
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             openFile(file)
@@ -536,6 +560,26 @@ struct LocalBrowserView: View {
                 showDeleteConfirmation = true
             }
         }
+    }
+
+    // MARK: - Staging
+
+    private func stageSelectedForUpload() {
+        for file in selectedFiles {
+            stagedUploads.append(
+                StagedItem(filename: file.filename, size: file.size, source: .local(file.url))
+            )
+        }
+        selectedIDs = []
+    }
+
+    private func uploadStaged() {
+        for item in stagedUploads {
+            if case .local(let url) = item.source {
+                transferManager.upload(localURL: url)
+            }
+        }
+        stagedUploads = []
     }
 
     // MARK: - Navigation

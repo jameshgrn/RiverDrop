@@ -4,33 +4,64 @@ struct PaywallView: View {
     @EnvironmentObject var storeManager: StoreManager
     @Environment(\.dismiss) private var dismiss
 
-    private let features: [(icon: String, title: String, description: String)] = [
-        ("bolt.fill", "Rsync Transfers", "Faster file transfers using rsync with progress tracking"),
-        ("doc.text.magnifyingglass", "Content Search", "Search inside files using ripgrep"),
-        ("bookmark.fill", "Unlimited Bookmarks", "Save as many folder bookmarks as you need"),
+    @State private var appeared = false
+
+    private let features: [(icon: String, title: String, description: String, tint: Color)] = [
+        ("bolt.fill", "Rsync Transfers", "Faster file transfers using rsync with progress tracking", .orange),
+        ("doc.text.magnifyingglass", "Content Search", "Search inside files using ripgrep", Color.riverPrimary),
+        ("bookmark.fill", "Unlimited Bookmarks", "Save as many folder bookmarks as you need", .purple),
     ]
 
     var body: some View {
-        VStack(spacing: 20) {
-            header
-            Divider()
-            featureList
-            Divider()
-            purchaseSection
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: RD.Spacing.xl) {
+                    hero
+                    featureCards
+                    purchaseSection
+                }
+                .padding(RD.Spacing.xxl)
+            }
         }
-        .padding(30)
-        .frame(width: 420, height: 480)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.riverPrimary.opacity(0.08),
+                    Color.riverGlow.opacity(0.04),
+                    Color.clear,
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .frame(width: 420)
+        .frame(idealHeight: 520)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 8)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.35)) {
+                appeared = true
+            }
+        }
     }
 
-    private var header: some View {
-        VStack(spacing: 6) {
+    // MARK: - Hero
+
+    private var hero: some View {
+        VStack(spacing: RD.Spacing.sm) {
             Image(systemName: "drop.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.blue)
+                .font(.system(size: 48))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.riverPrimary, .riverGlow],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .padding(.bottom, RD.Spacing.xs)
 
             Text("RiverDrop Pro")
-                .font(.title)
-                .fontWeight(.bold)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
 
             Text("Unlock the full power of RiverDrop")
                 .font(.subheadline)
@@ -38,69 +69,93 @@ struct PaywallView: View {
         }
     }
 
-    private var featureList: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    // MARK: - Feature Cards
+
+    private var featureCards: some View {
+        VStack(spacing: RD.Spacing.md) {
             ForEach(features, id: \.title) { feature in
-                HStack(spacing: 12) {
-                    Image(systemName: feature.icon)
-                        .frame(width: 24)
-                        .foregroundStyle(.blue)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(feature.title)
-                            .fontWeight(.medium)
-                        Text(feature.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                featureCard(feature)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
     }
 
+    private func featureCard(_ feature: (icon: String, title: String, description: String, tint: Color)) -> some View {
+        HStack(spacing: RD.Spacing.lg) {
+            Image(systemName: feature.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(feature.tint, in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(feature.title)
+                    .fontWeight(.semibold)
+                    .font(.callout)
+
+                Text(feature.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .cardStyle(padding: RD.Spacing.md)
+    }
+
+    // MARK: - Purchase
+
     private var purchaseSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: RD.Spacing.lg) {
             if let error = storeManager.errorMessage {
                 Text(error)
-                    .foregroundStyle(.red)
                     .font(.caption)
+                    .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, RD.Spacing.md)
+                    .padding(.vertical, RD.Spacing.sm)
+                    .background(.red.opacity(0.08), in: Capsule())
             }
 
             if let product = storeManager.proProduct {
+                Text(product.displayPrice)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+
                 Button {
                     Task { await storeManager.purchase() }
                 } label: {
                     if storeManager.isPurchasing {
                         ProgressView()
                             .controlSize(.small)
-                            .frame(width: 200)
+                            .frame(maxWidth: .infinity)
                     } else {
-                        Text("Buy Pro — \(product.displayPrice)")
-                            .frame(width: 200)
+                        Text("Get RiverDrop Pro")
+                            .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(RDButtonStyle(isProminent: true))
                 .disabled(storeManager.isPurchasing)
             } else {
                 ProgressView("Loading...")
                     .controlSize(.small)
             }
 
-            Button("Restore Purchases") {
-                Task { await storeManager.restorePurchases() }
-            }
-            .buttonStyle(.borderless)
-            .font(.caption)
+            HStack(spacing: RD.Spacing.lg) {
+                Button("Restore Purchases") {
+                    Task { await storeManager.restorePurchases() }
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            Button("Not Now") {
-                dismiss()
+                Button("Not Now") {
+                    dismiss()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             }
-            .buttonStyle(.borderless)
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
     }
 }
