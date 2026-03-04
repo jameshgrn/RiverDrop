@@ -1,6 +1,11 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private struct SavedBookmark: Codable, Equatable {
+    let label: String
+    let path: String
+}
+
 struct LocalBrowserView: View {
     @EnvironmentObject var transferManager: TransferManager
     @EnvironmentObject var sftpService: SFTPService
@@ -32,8 +37,11 @@ struct LocalBrowserView: View {
     @State private var renameText = ""
     @State private var stagedUploads: [StagedItem] = []
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenFiles = false
+    @State private var savedBookmarks: [SavedBookmark] = []
 
-    private static let bookmarks: [(label: String, path: String)] = [
+    private static let freeBookmarkLimit = 5
+
+    private static let defaultBookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
         ("Home", "/Users/\(NSUserName())"),
         ("Cluster Scratch", "/not_backed_up/\(NSUserName())"),
@@ -86,6 +94,7 @@ struct LocalBrowserView: View {
             return true
         }
         .onAppear {
+            loadSavedBookmarks()
             if !hasRequestedAccess {
                 hasRequestedAccess = true
                 requestInitialAccess()
@@ -152,16 +161,43 @@ struct LocalBrowserView: View {
                 .help("Refresh")
 
                 Menu {
-                    ForEach(Self.bookmarks, id: \.path) { bookmark in
+                    ForEach(Self.defaultBookmarks, id: \.path) { bookmark in
                         if FileManager.default.fileExists(atPath: bookmark.path) {
                             Button(bookmark.label) {
                                 navigateToBookmark(path: bookmark.path)
                             }
                         }
                     }
+
+                    if !savedBookmarks.isEmpty {
+                        Divider()
+                        ForEach(savedBookmarks, id: \.path) { bookmark in
+                            Button(bookmark.label) {
+                                navigateToBookmark(path: bookmark.path)
+                            }
+                        }
+                    }
+
                     Divider()
+
+                    Button("Save Current Folder") {
+                        saveCurrentFolderAsBookmark()
+                    }
+                    .disabled(isCurrentFolderBookmarked)
+
                     Button("Choose Folder\u{2026}") {
                         openPanel()
+                    }
+
+                    if !savedBookmarks.isEmpty {
+                        Divider()
+                        Menu("Remove Bookmark") {
+                            ForEach(savedBookmarks, id: \.path) { bookmark in
+                                Button(bookmark.label) {
+                                    removeBookmark(bookmark)
+                                }
+                            }
+                        }
                     }
                 } label: {
                     Image(systemName: "bookmark")
@@ -665,6 +701,48 @@ struct LocalBrowserView: View {
                 showDeleteConfirmation = true
             }
         }
+    }
+
+    // MARK: - Bookmarks
+
+    private var isCurrentFolderBookmarked: Bool {
+        let path = localCurrentDirectory.path
+        return Self.defaultBookmarks.contains(where: { $0.path == path })
+            || savedBookmarks.contains(where: { $0.path == path })
+    }
+
+    private func saveCurrentFolderAsBookmark() {
+        let path = localCurrentDirectory.path
+        let label = localCurrentDirectory.lastPathComponent
+
+        guard !isCurrentFolderBookmarked else { return }
+
+        if !storeManager.isPro && savedBookmarks.count >= Self.freeBookmarkLimit {
+            showPaywall = true
+            return
+        }
+
+        savedBookmarks.append(SavedBookmark(label: label, path: path))
+        persistBookmarks()
+    }
+
+    private func removeBookmark(_ bookmark: SavedBookmark) {
+        savedBookmarks.removeAll { $0 == bookmark }
+        persistBookmarks()
+    }
+
+    private func loadSavedBookmarks() {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.savedBookmarks),
+              let decoded = try? JSONDecoder().decode([SavedBookmark].self, from: data)
+        else {
+            return
+        }
+        savedBookmarks = decoded
+    }
+
+    private func persistBookmarks() {
+        guard let data = try? JSONEncoder().encode(savedBookmarks) else { return }
+        UserDefaults.standard.set(data, forKey: DefaultsKey.savedBookmarks)
     }
 
     // MARK: - Staging
