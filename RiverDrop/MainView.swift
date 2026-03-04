@@ -63,6 +63,7 @@ struct MainView: View {
     @State private var recentlyDownloaded: Set<String> = []
     @State private var isRemoteDropTargeted = false
     @State private var remoteSearchText = ""
+    @State private var remoteDisplayLimit = 200
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -86,6 +87,14 @@ struct MainView: View {
         let substringHits = sftpService.files
             .filter { $0.filename.lowercased().contains(lower) }
         return substringHits
+    }
+
+    private var displayedRemoteFiles: [RemoteFileItem] {
+        Array(filteredRemoteFiles.prefix(remoteDisplayLimit))
+    }
+
+    private var hasMoreRemoteFiles: Bool {
+        remoteDisplayLimit < filteredRemoteFiles.count
     }
 
     var body: some View {
@@ -140,11 +149,25 @@ struct MainView: View {
                 }
             } else {
                 List {
-                    ForEach(filteredRemoteFiles) { file in
+                    ForEach(displayedRemoteFiles) { file in
                         if file.isDirectory {
                             remoteFolderRow(file)
                         } else {
                             remoteFileRow(file)
+                        }
+                    }
+                    if hasMoreRemoteFiles {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading more...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .onAppear {
+                            remoteDisplayLimit += 200
                         }
                     }
                 }
@@ -162,6 +185,9 @@ struct MainView: View {
         .onDrop(of: [.fileURL], isTargeted: $isRemoteDropTargeted) { providers in
             handleRemoteDrop(providers)
             return true
+        }
+        .onChange(of: remoteSearchText) { _, _ in
+            remoteDisplayLimit = 200
         }
     }
 
@@ -222,7 +248,9 @@ struct MainView: View {
             .font(.caption)
             .help("Copy current remote directory path to clipboard")
 
-            Text("\(filteredRemoteFiles.count) items")
+            Text(hasMoreRemoteFiles
+                ? "Showing \(displayedRemoteFiles.count) of \(filteredRemoteFiles.count)"
+                : "\(filteredRemoteFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -288,6 +316,7 @@ struct MainView: View {
         await sftpService.listDirectory()
         remoteSelectedIDs = []
         remoteSearchText = ""
+        remoteDisplayLimit = 200
     }
 
     private func remoteFolderRow(_ file: RemoteFileItem) -> some View {
