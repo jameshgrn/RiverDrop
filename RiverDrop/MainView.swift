@@ -63,6 +63,9 @@ struct MainView: View {
     @State private var recentlyDownloaded: Set<String> = []
     @State private var isRemoteDropTargeted = false
     @State private var remoteSearchText = ""
+    @State private var showRemoteContentSearch = false
+    @State private var remoteContentSearchQuery = ""
+    @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -132,6 +135,11 @@ struct MainView: View {
             remotePathBar
             Divider()
 
+            if showRemoteContentSearch {
+                remoteContentSearchPanel
+                Divider()
+            }
+
             if filteredRemoteFiles.isEmpty {
                 if remoteSearchText.isEmpty {
                     ContentUnavailableView("Empty Directory", systemImage: "folder")
@@ -195,6 +203,16 @@ struct MainView: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 140)
 
+            Button {
+                showRemoteContentSearch.toggle()
+                if !showRemoteContentSearch {
+                    remoteRipgrepSearch.cancel()
+                }
+            } label: {
+                Image(systemName: "doc.text.magnifyingglass")
+            }
+            .help("Remote content search (rg)")
+
             Spacer()
 
             if !remoteSelectedIDs.isEmpty {
@@ -251,6 +269,94 @@ struct MainView: View {
             .padding(.vertical, 4)
         }
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var remoteContentSearchPanel: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField("Search file contents...", text: $remoteContentSearchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        remoteRipgrepSearch.search(
+                            query: remoteContentSearchQuery,
+                            in: sftpService.currentPath,
+                            via: sftpService
+                        )
+                    }
+
+                if remoteRipgrepSearch.isSearching {
+                    Button {
+                        remoteRipgrepSearch.cancel()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button {
+                        guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        remoteRipgrepSearch.search(
+                            query: remoteContentSearchQuery,
+                            in: sftpService.currentPath,
+                            via: sftpService
+                        )
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+
+            if let error = remoteRipgrepSearch.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+            }
+
+            if remoteRipgrepSearch.isSearching {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Searching...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+            }
+
+            if !remoteRipgrepSearch.results.isEmpty {
+                List(remoteRipgrepSearch.results) { result in
+                    Button {
+                        Task { await navigateRemoteTo(result.directoryPath) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(result.filePath)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            HStack(spacing: 4) {
+                                Text("L\(result.lineNumber)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .monospacedDigit()
+                                Text(result.content)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.inset)
+                .frame(maxHeight: 200)
+            }
+        }
+        .padding(.bottom, 4)
     }
 
     private var remotePathComponents: [(name: String, path: String)] {

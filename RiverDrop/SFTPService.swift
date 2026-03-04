@@ -114,6 +114,10 @@ final class SFTPService: ObservableObject {
         await listDirectory()
     }
 
+    func executeCommand(_ command: String, mergeStreams: Bool = true) async throws -> String {
+        try await session.executeCommand(command, mergeStreams: mergeStreams)
+    }
+
     func uploadFile(
         localURL: URL,
         to destinationPath: String,
@@ -260,6 +264,12 @@ private actor SFTPSession {
     func resolvePath(atPath path: String) async throws -> String {
         guard let sftp = sftpClient else { throw SFTPError.notConnected }
         return try await sftp.getRealPath(atPath: path)
+    }
+
+    func executeCommand(_ command: String, mergeStreams: Bool = true) async throws -> String {
+        guard let ssh = sshClient else { throw SFTPError.notConnected }
+        var buffer = try await ssh.executeCommand(command, mergeStreams: mergeStreams, inShell: true)
+        return buffer.readString(length: buffer.readableBytes) ?? ""
     }
 
     func uploadFile(
