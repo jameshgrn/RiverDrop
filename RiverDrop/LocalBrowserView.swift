@@ -696,6 +696,14 @@ struct LocalBrowserView: View {
             )
             var skippedCount = 0
             files = urls.compactMap { url in
+                let originalValues: URLResourceValues
+                do {
+                    originalValues = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
+                } catch {
+                    skippedCount += 1
+                    return nil
+                }
+                let isSymlink = originalValues.isSymbolicLink ?? false
                 let resolved = url.resolvingSymlinksInPath()
                 let values: URLResourceValues
                 do {
@@ -709,9 +717,11 @@ struct LocalBrowserView: View {
                 return LocalFileItem(
                     filename: url.lastPathComponent,
                     isDirectory: values.isDirectory ?? false,
+                    isSymbolicLink: isSymlink,
                     size: UInt64(values.fileSize ?? 0),
                     modificationDate: values.contentModificationDate,
-                    url: resolved
+                    url: url,
+                    resolvedURL: resolved
                 )
             }
             .sorted { lhs, rhs in
