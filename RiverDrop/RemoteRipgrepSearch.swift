@@ -61,18 +61,6 @@ final class RemoteRipgrepSearch: ObservableObject {
             let output: String
             do {
                 output = try await service.executeCommand(command)
-            } catch let error as CommandFailed {
-                guard !Task.isCancelled else { return }
-                switch error.exitCode {
-                case 1:
-                    return
-                case 127:
-                    errorMessage = "ripgrep (rg) is not installed on the remote server. Install with: sudo apt install ripgrep"
-                    return
-                default:
-                    errorMessage = "rg exited with code \(error.exitCode)"
-                    return
-                }
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = "Remote search failed: \(error.localizedDescription)"

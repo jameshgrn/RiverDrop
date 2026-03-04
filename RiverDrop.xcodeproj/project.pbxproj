@@ -19,7 +19,7 @@
 		B6C7D8E9F0A12345678901BC /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */; };
 		C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */; };
 		D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */; };
-		A5B6C7D8E9F01234567890AB /* DryRunPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */; };
+		D4E5F6A7B8C90D23456789AB /* DryRunPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */; };
 		F5A6B7C8D9E01142637A8B9C /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */; };
 		E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */; };
 		F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */; };
@@ -165,7 +165,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */,
-				A5B6C7D8E9F01234567890AB /* DryRunPreviewView.swift in Sources */,
+				D4E5F6A7B8C90D23456789AB /* DryRunPreviewView.swift in Sources */,
 				6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */,
 				C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */,
 				B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */,
