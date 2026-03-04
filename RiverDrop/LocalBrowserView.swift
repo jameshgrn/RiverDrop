@@ -17,6 +17,9 @@ struct LocalBrowserView: View {
     @State private var localDisplayLimit = 200
     @State private var showContentSearch = false
     @State private var contentSearchQuery = ""
+    @State private var isRecursiveSearch = true
+    @State private var fileTypeFilter = ""
+    @State private var highlightFileName: String?
     @StateObject private var ripgrepSearch = RipgrepSearch()
     @State private var showPaywall = false
 
@@ -193,15 +196,36 @@ struct LocalBrowserView: View {
 
     // MARK: - Content Search Panel
 
+    private var parsedFileTypes: [String] {
+        fileTypeFilter
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func runContentSearch() {
+        let query = contentSearchQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return }
+        ripgrepSearch.search(
+            query: query,
+            in: localCurrentDirectory,
+            recursive: isRecursiveSearch,
+            fileTypes: parsedFileTypes,
+            securityScopedURL: activeSecurityScopedURL
+        )
+    }
+
+    private func navigateToResult(_ result: RipgrepResult) {
+        navigateTo(result.directoryURL)
+        highlightFileName = result.fileName
+    }
+
     private var contentSearchPanel: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 TextField("Search file contents...", text: $contentSearchQuery)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        guard !contentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                        ripgrepSearch.search(query: contentSearchQuery, in: localCurrentDirectory.path)
-                    }
+                    .onSubmit { runContentSearch() }
 
                 if ripgrepSearch.isSearching {
                     Button {
@@ -211,11 +235,9 @@ struct LocalBrowserView: View {
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(.borderless)
+                    .help("Cancel search")
                 } else {
-                    Button {
-                        guard !contentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                        ripgrepSearch.search(query: contentSearchQuery, in: localCurrentDirectory.path)
-                    } label: {
+                    Button { runContentSearch() } label: {
                         Image(systemName: "magnifyingglass")
                     }
                     .buttonStyle(.borderless)
@@ -223,6 +245,23 @@ struct LocalBrowserView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 4)
+
+            HStack(spacing: 12) {
+                Toggle("Recursive", isOn: $isRecursiveSearch)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+
+                HStack(spacing: 4) {
+                    Text("Types:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("py,swift,md", text: $fileTypeFilter)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 120)
+                        .font(.caption)
+                }
+            }
+            .padding(.horizontal, 8)
 
             if let error = ripgrepSearch.errorMessage {
                 Text(error)
@@ -240,15 +279,27 @@ struct LocalBrowserView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 8)
+            } else if ripgrepSearch.searchCompleted && ripgrepSearch.results.isEmpty {
+                Text("No results found")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
             }
 
             if !ripgrepSearch.results.isEmpty {
+                HStack {
+                    Text("\(ripgrepSearch.resultCount) match\(ripgrepSearch.resultCount == 1 ? "" : "es")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+
                 List(ripgrepSearch.results) { result in
                     Button {
-                        navigateTo(result.directoryURL)
+                        navigateToResult(result)
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(result.filePath)
+                            Text(ripgrepSearch.relativePath(for: result))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -364,6 +415,7 @@ struct LocalBrowserView: View {
     private func fileRow(_ file: LocalFileItem) -> some View {
         let isSelected = selectedIDs.contains(file.id)
         let isNew = recentlyDownloaded.contains(file.filename)
+        let isHighlighted = highlightFileName == file.filename
         return HStack {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
@@ -401,8 +453,10 @@ struct LocalBrowserView: View {
         .onDrag {
             NSItemProvider(object: file.url as NSURL)
         }
+        .listRowBackground(isHighlighted ? Color.accentColor.opacity(0.15) : nil)
         .contentShape(Rectangle())
         .onTapGesture {
+            highlightFileName = nil
             if isSelected {
                 selectedIDs.remove(file.id)
             } else {
@@ -429,6 +483,7 @@ struct LocalBrowserView: View {
         selectedIDs = []
         recentlyDownloaded = []
         searchText = ""
+        highlightFileName = nil
         localDisplayLimit = 200
         loadDirectory()
     }
