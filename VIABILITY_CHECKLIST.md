@@ -6,7 +6,7 @@ For a tool that manages remote servers and sensitive data, viability means **pre
 
 - [x] **Keychain Integration:** Credentials stored in macOS Keychain with `com.riverdrop.sftp` service identifier.
 - [x] **Host Key Validation (TOFU):** First-use fingerprint stored, verified on subsequent connections.
-- [ ] **SSH Key Support:** Must support `id_rsa`, `id_ed25519`, and `ssh-agent`. Most HPC users disable password login entirely.
+- [x] **SSH Key Support:** Supports `id_rsa`, `id_ed25519` via `SSHKeyManager` with security-scoped bookmarks for sandboxed access. Passphrase-protected keys handled via `SSH_ASKPASS`.
 - [ ] **Host Key Management UI:** "View/Reset Key" interface for stored host fingerprints.
 - [ ] **2FA / Keyboard-Interactive Auth:** Duo, Google Authenticator prompts during SSH connection.
 
@@ -14,7 +14,7 @@ For a tool that manages remote servers and sensitive data, viability means **pre
 
 - [x] **Conflict Detection (Basic):** Detects if destination file exists; offers Replace/Rename/Cancel.
 - [x] **Atomic Transfers:** Rsync `--partial` prevents corrupted files from partial transfers.
-- [ ] **Rsync Dry-Run Preview:** Show a diff of files that will be added/modified/deleted before executing.
+- [x] **Rsync Dry-Run Preview:** `DryRunPreviewView` shows diff of files to be added/modified/deleted; user confirms before apply executes.
 - [ ] **Advanced Conflict Detection:** Warn when a file has been modified both locally and remotely since last sync.
 - [ ] **Destructive Action Confirmation:** Explicit confirmation for `rsync --delete` or remote `rm` operations.
 
@@ -28,11 +28,11 @@ For a tool that manages remote servers and sensitive data, viability means **pre
 
 ## 4. Platform Compliance
 
-- [x] **Security-Scoped Bookmarks:** Local file access persisted across launches.
+- [x] **Security-Scoped Bookmarks:** Local file access and SSH keys persisted across launches via app-scoped bookmarks.
 - [x] **Network Client Entitlement:** SSH/SFTP outbound connections allowed.
-- [ ] **App Sandbox:** Currently disabled (`com.apple.security.app-sandbox = false`). Required for App Store.
-- [ ] **Hardened Runtime & Notarization:** Required for direct-download distribution.
-- [ ] **Privacy Manifests:** Declare sensitive API usage per modern Apple requirements.
+- [x] **App Sandbox:** Enabled (`com.apple.security.app-sandbox = true`) with user-selected read-write and bookmark entitlements.
+- [ ] **Hardened Runtime & Notarization:** Required for direct-download distribution. *(in progress)*
+- [ ] **Privacy Manifests:** `PrivacyInfo.xcprivacy` not yet added. Required for App Store submission. *(in progress)*
 
 ## 5. Performance
 
@@ -44,6 +44,6 @@ For a tool that manages remote servers and sensitive data, viability means **pre
 
 ## 6. Monetization
 
-- [ ] **StoreKit 2 Integration:** In-app purchase for Pro tier ($14.99).
-- [ ] **Feature Gating:** Free tier limited to SFTP; Pro unlocks rsync, ripgrep, unlimited bookmarks.
-- [ ] **Restore Purchases:** Handle App Store receipt validation and purchase restoration.
+- [x] **StoreKit 2 Integration:** `com.riverdrop.pro` non-consumable ($14.99) via `StoreManager` and `PaywallView`.
+- [x] **Feature Gating:** Free tier = SFTP; Pro unlocks rsync, ripgrep, sync previews.
+- [x] **Restore Purchases:** Restore flow implemented in `PaywallView`.

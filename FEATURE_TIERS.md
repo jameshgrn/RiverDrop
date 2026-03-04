@@ -21,13 +21,13 @@ Rationale: Keep discovery in free so users experience value early; reserve heavy
 
 ## 3. PRO Tier Features (with rationale)
 - Rsync transfer engine with automatic SFTP fallback (`TransferManager.swift`, `RsyncTransfer.swift`).
-Rationale: This is the clearest monetizable value: faster differential sync and better throughput on large datasets. Note: current rsync path depends on `retrievePassword()` in `TransferManager.swift`, so SSH-key-only sessions cannot use rsync yet.
+Rationale: This is the clearest monetizable value: faster differential sync and better throughput on large datasets. Rsync now supports both password and SSH key authentication (`RsyncAuth` enum with `.password` and `.sshKey` cases).
 
 - Remote content search over SSH (`MainView.swift`, `RemoteRipgrepSearch.swift`).
 Rationale: This is the roadmap "killer feature" and maps directly to HPC/dev pain (searching large remote trees quickly).
 
-- Sync preview/dry-run workflows and eventual one-click sync apply (`TransferManager.swift`, `RsyncTransfer.swift`, `DryRunPreviewView.swift`, `MainView.swift`).
-Rationale: Safety plus scale is premium value; preview is already implemented and should anchor Pro once apply is wired (currently TODO in `MainView.swift`). Also, dry-run currently requires stored password auth in `TransferManager.swift`, mirroring the rsync limitation.
+- Sync preview/dry-run workflows with one-click apply (`TransferManager.swift`, `RsyncTransfer.swift`, `DryRunPreviewView.swift`, `MainView.swift`).
+Rationale: Safety plus scale is premium value. Both dry-run preview and apply-sync are fully wired — user sees the diff, confirms, and `applySyncUpload`/`applySyncDownload` executes the real sync. Works with both password and SSH key auth.
 
 - Advanced transfer controls once shipped: rsync profiles, delete-mode safeguards, and resumable/reconnect behavior (aligned with `VIABILITY_CHECKLIST.md`).
 Rationale: Power users pay for predictable high-volume operations, not just UI polish.
