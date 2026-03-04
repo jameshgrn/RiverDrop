@@ -227,7 +227,11 @@ struct MainView: View {
                     result: result,
                     onConfirm: {
                         showDryRunPreview = false
-                        transferManager.syncDirectory(localDir: localCurrentDirectory)
+                        if storeManager.isPro {
+                            transferManager.syncDirectory(localDir: localCurrentDirectory)
+                        } else {
+                            showPaywall = true
+                        }
                     },
                     onCancel: {
                         showDryRunPreview = false
@@ -324,11 +328,15 @@ struct MainView: View {
             .help("Copy remote path")
 
             Button {
-                Task {
-                    await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
-                    if transferManager.dryRunResult != nil {
-                        showDryRunPreview = true
+                if storeManager.isPro {
+                    Task {
+                        await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
+                        if transferManager.dryRunResult != nil {
+                            showDryRunPreview = true
+                        }
                     }
+                } else {
+                    showPaywall = true
                 }
             } label: {
                 if transferManager.isRunningDryRun {
