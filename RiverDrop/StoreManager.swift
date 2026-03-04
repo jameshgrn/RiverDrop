@@ -15,6 +15,7 @@ final class StoreManager: ObservableObject {
     @Published private(set) var proProduct: Product?
     @Published private(set) var isPro = false
     @Published private(set) var isPurchasing = false
+    @Published private(set) var isRestoring = false
     @Published var errorMessage: String?
 
     private var transactionTask: Task<Void, Never>?
@@ -78,9 +79,14 @@ final class StoreManager: ObservableObject {
 
     func restorePurchases() async {
         errorMessage = nil
+        isRestoring = true
+        defer { isRestoring = false }
         do {
             try await AppStore.sync()
             await checkEntitlements()
+            if !isPro {
+                errorMessage = "No previous purchase found for this Apple ID."
+            }
         } catch {
             errorMessage = "Restore purchases failed: \(error.localizedDescription). Suggested fix: verify you're signed in with the Apple ID used for the original purchase."
         }

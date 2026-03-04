@@ -169,12 +169,20 @@ struct PaywallView: View {
             }
 
             HStack(spacing: RD.Spacing.lg) {
-                Button("Restore Purchases") {
+                Button {
                     Task { await storeManager.restorePurchases() }
+                } label: {
+                    if storeManager.isRestoring {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Text("Restore Purchases")
+                    }
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .disabled(storeManager.isRestoring || storeManager.isPurchasing)
 
                 Button("Not Now") {
                     dismiss()
