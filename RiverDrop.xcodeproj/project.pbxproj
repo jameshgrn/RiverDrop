@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F6071829PRIV01 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829PRIV00 /* PrivacyInfo.xcprivacy */; };
 		12B5AF4F0F0C5833DA2A7F40 /* DefaultsKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72136A46D625223BF3D6241 /* DefaultsKey.swift */; };
 		14EA0F7C4DD7F8B26FA4A50E /* DryRunPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5F6482B89B85A190B9B2D92 /* DryRunPreviewView.swift */; };
 		2CCD926E9A53A04B41ECED7A /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */; };
@@ -43,6 +44,7 @@
 		43E55F09D483C9B50F4EB55B /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
 		475DC44F97CE166D9CB71385 /* RiverDropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiverDropApp.swift; sourceTree = "<group>"; };
 		667ECBE9A818F337254038FE /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829PRIV00 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
 		7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
 		809ED4C4ED36643B3F64854F /* RiverDrop.storekit */ = {isa = PBXFileReference; path = RiverDrop.storekit; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 				7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */,
 				C7584E43BAC720FCB206A8B4 /* MainView.swift */,
 				667ECBE9A818F337254038FE /* PaywallView.swift */,
+				A1B2C3D4E5F6071829PRIV00 /* PrivacyInfo.xcprivacy */,
 				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
 				D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */,
 				EB90A53412316A0A7C768615 /* RipgrepSearch.swift */,
@@ -185,6 +188,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3116B4A1256173EBF1B77DFB /* Assets.xcassets in Resources */,
+				A1B2C3D4E5F6071829PRIV01 /* PrivacyInfo.xcprivacy in Resources */,
 				A3CFF019F901DFA05F00E600 /* RiverDrop.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
