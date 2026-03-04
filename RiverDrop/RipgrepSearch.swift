@@ -54,6 +54,7 @@ final class RipgrepSearch: ObservableObject {
 
     private var process: Process?
     private var accessedURL: URL?
+    private var currentSearchToken: UUID?
 
     static var rgPath: String? {
         for path in ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"] {
@@ -88,6 +89,10 @@ final class RipgrepSearch: ObservableObject {
         }
 
         cancel()
+        
+        let token = UUID()
+        currentSearchToken = token
+        
         results = []
         errorMessage = nil
         searchCompleted = false
@@ -138,11 +143,12 @@ final class RipgrepSearch: ObservableObject {
 
         proc.terminationHandler = { [weak self] process in
             Task { @MainActor [weak self] in
-                self?.isSearching = false
-                self?.searchCompleted = true
-                self?.process = nil
+                guard let self = self, self.currentSearchToken == token else { return }
+                self.isSearching = false
+                self.searchCompleted = true
+                self.process = nil
                 if process.terminationStatus != 0 && process.terminationStatus != 1 {
-                    self?.errorMessage = "rg exited with code \(process.terminationStatus)"
+                    self.errorMessage = "rg exited with code \(process.terminationStatus)"
                 }
             }
         }
@@ -150,11 +156,13 @@ final class RipgrepSearch: ObservableObject {
         do {
             try proc.run()
         } catch {
-            isSearching = false
-            searchCompleted = true
-            process = nil
-            stopSecurityScopedAccess()
-            errorMessage = "Failed to start rg: \(error.localizedDescription)"
+            if currentSearchToken == token {
+                isSearching = false
+                searchCompleted = true
+                process = nil
+                stopSecurityScopedAccess()
+                errorMessage = "Failed to start rg: \(error.localizedDescription)"
+            }
             return
         }
 
@@ -163,7 +171,8 @@ final class RipgrepSearch: ObservableObject {
             let data = fileHandle.readDataToEndOfFile()
 
             await MainActor.run { [weak self] in
-                self?.stopSecurityScopedAccess()
+                guard let self = self, self.currentSearchToken == token else { return }
+                self.stopSecurityScopedAccess()
             }
 
             guard let output = String(data: data, encoding: .utf8) else { return }
@@ -176,13 +185,15 @@ final class RipgrepSearch: ObservableObject {
                 }
 
             await MainActor.run { [weak self] in
-                self?.results = parsed
-                self?.resultCount = parsed.count
+                guard let self = self, self.currentSearchToken == token else { return }
+                self.results = parsed
+                self.resultCount = parsed.count
             }
         }
     }
 
     func cancel() {
+        currentSearchToken = nil
         process?.terminate()
         process = nil
         isSearching = false
