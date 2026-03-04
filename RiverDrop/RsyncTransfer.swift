@@ -490,13 +490,19 @@ final class RsyncTransfer: @unchecked Sendable {
         HostKeyKeychainHelper.load(for: host)
     }
 
-    /// Copy an SSH key to the app's temp directory so the unsandboxed rsync
+    /// Copy an SSH key to the app's temp directory so the rsync
     /// subprocess can read it. Returns the temp file path (caller must delete).
     private func copySSHKeyToTemp(_ keyPath: String) throws -> String {
-        let src = URL(fileURLWithPath: keyPath)
         let dst = FileManager.default.temporaryDirectory
             .appendingPathComponent("riverdrop_sshkey_\(UUID().uuidString)")
-        try FileManager.default.copyItem(at: src, to: dst)
+
+        if let scopedURL = SSHKeyManager.startAccessing(path: keyPath) {
+            defer { scopedURL.stopAccessingSecurityScopedResource() }
+            try FileManager.default.copyItem(at: scopedURL, to: dst)
+        } else {
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: keyPath), to: dst)
+        }
+
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
             ofItemAtPath: dst.path

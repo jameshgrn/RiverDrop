@@ -717,11 +717,21 @@ struct MainView: View {
             panel.allowsMultipleSelection = false
             panel.prompt = "Navigate"
             if panel.runModal() == .OK, let url = panel.url {
+                saveLocalBookmark(for: url)
                 localCurrentDirectory = url
             }
             return
         }
         localCurrentDirectory = URL(fileURLWithPath: path)
+    }
+
+    private func saveLocalBookmark(for url: URL) {
+        guard let data = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else { return }
+        UserDefaults.standard.set(data, forKey: DefaultsKey.sandboxBookmarkPrefix + url.path)
     }
 
     private func navigateRemoteTo(_ path: String) async {
