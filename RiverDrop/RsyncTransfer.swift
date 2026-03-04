@@ -135,7 +135,9 @@ final class RsyncTransfer: @unchecked Sendable {
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = ":0"
         case let .sshKey(keyPath, passphrase):
-            sshCommand += " -i \(shellQuote(keyPath)) -o IdentitiesOnly=yes"
+            let tempKeyPath = try copySSHKeyToTemp(keyPath)
+            tempFiles.append(tempKeyPath)
+            sshCommand += " -i \(shellQuote(tempKeyPath)) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -240,7 +242,9 @@ final class RsyncTransfer: @unchecked Sendable {
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = ":0"
         case let .sshKey(keyPath, passphrase):
-            sshCommand += " -i \(shellQuote(keyPath)) -o IdentitiesOnly=yes"
+            let tempKeyPath = try copySSHKeyToTemp(keyPath)
+            tempFiles.append(tempKeyPath)
+            sshCommand += " -i \(shellQuote(tempKeyPath)) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -370,7 +374,9 @@ final class RsyncTransfer: @unchecked Sendable {
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = ":0"
         case let .sshKey(keyPath, passphrase):
-            sshCommand += " -i \(shellQuote(keyPath)) -o IdentitiesOnly=yes"
+            let tempKeyPath = try copySSHKeyToTemp(keyPath)
+            tempFiles.append(tempKeyPath)
+            sshCommand += " -i \(shellQuote(tempKeyPath)) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -482,6 +488,20 @@ final class RsyncTransfer: @unchecked Sendable {
 
     private func loadKnownHostKey(for host: String) -> String? {
         HostKeyKeychainHelper.load(for: host)
+    }
+
+    /// Copy an SSH key to the app's temp directory so the unsandboxed rsync
+    /// subprocess can read it. Returns the temp file path (caller must delete).
+    private func copySSHKeyToTemp(_ keyPath: String) throws -> String {
+        let src = URL(fileURLWithPath: keyPath)
+        let dst = FileManager.default.temporaryDirectory
+            .appendingPathComponent("riverdrop_sshkey_\(UUID().uuidString)")
+        try FileManager.default.copyItem(at: src, to: dst)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: dst.path
+        )
+        return dst.path
     }
 
     private func shellQuote(_ path: String) -> String {
