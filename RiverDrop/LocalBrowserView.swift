@@ -132,143 +132,167 @@ struct LocalBrowserView: View {
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: RD.Spacing.xs) {
-            // Navigation group
-            Button { navigateTo(localCurrentDirectory.deletingLastPathComponent()) } label: {
-                Image(systemName: "chevron.left")
-            }
-            .frame(width: 28, height: 24)
-            .help("Go up")
-            .disabled(localCurrentDirectory.path == "/")
+        VStack(spacing: 0) {
+            // Main toolbar row
+            HStack(spacing: RD.Spacing.sm) {
+                // Left: navigation + bookmarks
+                Button { navigateTo(localCurrentDirectory.deletingLastPathComponent()) } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .frame(width: 28, height: 24)
+                .help("Go up")
+                .disabled(localCurrentDirectory.path == "/")
 
-            Button { loadDirectory() } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .frame(width: 28, height: 24)
-            .help("Refresh")
+                Button { loadDirectory() } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .frame(width: 28, height: 24)
+                .help("Refresh")
 
-            Button {
-                showHiddenFiles.toggle()
-            } label: {
-                Image(systemName: showHiddenFiles ? "eye" : "eye.slash")
-            }
-            .frame(width: 28, height: 24)
-            .help(showHiddenFiles ? "Hide hidden files" : "Show hidden files")
+                Menu {
+                    ForEach(Self.bookmarks, id: \.path) { bookmark in
+                        Button(bookmark.label) {
+                            navigateToBookmark(path: bookmark.path)
+                        }
+                    }
+                    Divider()
+                    Button("Choose Folder\u{2026}") {
+                        openPanel()
+                    }
+                } label: {
+                    Image(systemName: "bookmark")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Bookmarks")
 
-            Menu {
-                ForEach(Self.bookmarks, id: \.path) { bookmark in
-                    Button(bookmark.label) {
-                        navigateToBookmark(path: bookmark.path)
+                // Center: filter field (flex)
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    TextField("Filter\u{2026}", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.borderless)
                     }
                 }
-                Divider()
-                Button("Choose Folder\u{2026}") {
-                    openPanel()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+
+                // Right: overflow menu + count
+                Menu {
+                    Button {
+                        showHiddenFiles.toggle()
+                    } label: {
+                        Label(
+                            showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files",
+                            systemImage: showHiddenFiles ? "eye" : "eye.slash"
+                        )
+                    }
+
+                    Button {
+                        if storeManager.isPro {
+                            showContentSearch.toggle()
+                            if !showContentSearch {
+                                ripgrepSearch.cancel()
+                            }
+                        } else {
+                            showPaywall = true
+                        }
+                    } label: {
+                        Label("Content Search", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .disabled(!RipgrepSearch.isAvailable)
+
+                    Button { copyLocalPathToClipboard() } label: {
+                        Label("Copy Local Path", systemImage: "doc.on.clipboard")
+                    }
+
+                    if !recentlyDownloaded.isEmpty {
+                        Button { recentlyDownloaded = [] } label: {
+                            Label("Clear Download Highlights", systemImage: "sparkles")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
-            } label: {
-                Image(systemName: "bookmark")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Bookmarks")
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("More actions")
 
-            Divider()
-                .frame(height: 14)
-                .padding(.horizontal, 2)
-
-            // Search group
-            HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
-                TextField("Filter\u{2026}", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                StatusBadge(
+                    text: hasMoreFiles
+                        ? "\(displayedFiles.count)/\(filteredFiles.count)"
+                        : "\(filteredFiles.count) items",
+                    color: .secondary
+                )
             }
             .padding(.horizontal, RD.Spacing.sm)
-            .padding(.vertical, RD.Spacing.xs)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
-            .overlay(
-                RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-            )
-            .frame(maxWidth: 160)
+            .padding(.vertical, RD.Spacing.xs + 1)
 
-            Button {
-                if storeManager.isPro {
-                    showContentSearch.toggle()
-                    if !showContentSearch {
-                        ripgrepSearch.cancel()
-                    }
-                } else {
-                    showPaywall = true
-                }
-            } label: {
-                Image(systemName: "doc.text.magnifyingglass")
-            }
-            .frame(width: 28, height: 24)
-            .help(RipgrepSearch.isAvailable ? "Content search (rg)" : "ripgrep not installed")
-            .disabled(!RipgrepSearch.isAvailable)
-
-            Divider()
-                .frame(height: 14)
-                .padding(.horizontal, 2)
-
-            Spacer()
-
-            // Actions group
-            if !recentlyDownloaded.isEmpty {
-                Button { recentlyDownloaded = [] } label: {
-                    Image(systemName: "sparkles")
-                }
-                .buttonStyle(.borderless)
-                .frame(width: 28, height: 24)
-                .help("Clear download highlights")
-            }
-
+            // Contextual selection bar
             if !selectedIDs.isEmpty {
-                Button { selectedIDs = [] } label: {
-                    Image(systemName: "xmark.circle")
+                Divider()
+                HStack(spacing: RD.Spacing.sm) {
+                    Text("\(selectedIDs.count) selected")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Button { stageSelectedForUpload() } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "tray.and.arrow.up")
+                                .font(.system(size: 10))
+                            Text("Stage")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!sftpService.isConnected)
+                    .help("Stage selected for batch upload")
+
+                    Button { uploadSelected() } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 10))
+                            Text("Upload")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!sftpService.isConnected)
+                    .help("Upload \(selectedFiles.count) selected")
+
+                    Button { selectedIDs = [] } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text("Deselect")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Deselect all")
                 }
-                .buttonStyle(.borderless)
-                .frame(width: 28, height: 24)
-                .help("Deselect all")
+                .padding(.horizontal, RD.Spacing.sm)
+                .padding(.vertical, RD.Spacing.xs + 1)
+                .background(Color.accentColor.opacity(0.05))
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.spring(response: 0.2, dampingFraction: 0.85), value: selectedIDs.isEmpty)
             }
-
-            Button { stageSelectedForUpload() } label: {
-                Image(systemName: "tray.and.arrow.up")
-            }
-            .frame(width: 28, height: 24)
-            .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
-            .help("Stage selected for batch upload")
-
-            Button { uploadSelected() } label: {
-                Image(systemName: "arrow.up.circle.fill")
-            }
-            .frame(width: 28, height: 24)
-            .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
-            .help(selectedFiles.isEmpty ? "Upload selected" : "Upload \(selectedFiles.count) selected")
-
-            Button { copyLocalPathToClipboard() } label: {
-                Image(systemName: "doc.on.clipboard")
-            }
-            .buttonStyle(.borderless)
-            .frame(width: 28, height: 24)
-            .help("Copy local path")
-
-            Divider()
-                .frame(height: 14)
-                .padding(.horizontal, 2)
-
-            StatusBadge(
-                text: hasMoreFiles
-                    ? "\(displayedFiles.count)/\(filteredFiles.count)"
-                    : "\(filteredFiles.count) items",
-                color: .secondary
-            )
         }
-        .padding(.horizontal, RD.Spacing.sm)
-        .padding(.vertical, RD.Spacing.xs + 1)
     }
 
     // MARK: - Content Search Panel
@@ -443,7 +467,7 @@ struct LocalBrowserView: View {
                         }
                     }
                 }
-                .listStyle(.inset(alternatesRowBackgrounds: true))
+                .listStyle(.inset)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -465,6 +489,7 @@ struct LocalBrowserView: View {
                 FileIconView(filename: file.filename, isDirectory: true)
 
                 Text(file.filename)
+                    .fontWeight(.medium)
                     .lineLimit(1)
 
                 Spacer()
@@ -479,6 +504,7 @@ struct LocalBrowserView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.quaternary)
             }
+            .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -546,6 +572,7 @@ struct LocalBrowserView: View {
                 }
             }
         }
+        .padding(.vertical, 2)
         .onDrag {
             NSItemProvider(object: file.url as NSURL)
         }

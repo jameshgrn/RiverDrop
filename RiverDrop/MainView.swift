@@ -86,6 +86,51 @@ func droppedFileURL(from item: NSSecureCoding?) -> URL? {
     return nil
 }
 
+// MARK: - Staged Chip (needs @State for hover)
+
+private struct StagedChipView: View {
+    let item: StagedItem
+    let chipColor: Color
+    let isUpload: Bool
+    let onRemove: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: isUpload ? "arrow.up" : "arrow.down")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(chipColor)
+
+            FileIconView(filename: item.filename, isDirectory: false, size: 10)
+
+            Text(item.filename)
+                .font(.system(size: 10))
+                .lineLimit(1)
+                .frame(maxWidth: 100)
+
+            Text(ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file))
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(isHovered ? .secondary : .tertiary)
+                    .frame(width: 14, height: 14)
+                    .background(Color.primary.opacity(isHovered ? 0.1 : 0.06), in: Circle())
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
+        .background(chipColor.opacity(isHovered ? 0.1 : 0.05), in: Capsule())
+        .overlay(Capsule().strokeBorder(chipColor.opacity(isHovered ? 0.2 : 0.12), lineWidth: 0.5))
+        .onHover { isHovered = $0 }
+    }
+}
+
 struct MainView: View {
     @EnvironmentObject var sftpService: SFTPService
     @EnvironmentObject var transferManager: TransferManager
@@ -224,20 +269,11 @@ struct MainView: View {
                         }
                     }
                 }
-                .listStyle(.inset(alternatesRowBackgrounds: true))
+                .listStyle(.inset)
             }
 
             Divider()
-            DropZoneView(
-                direction: .upload,
-                stagedItems: $stagedUploads,
-                onTransferAll: uploadStaged
-            )
-            DropZoneView(
-                direction: .download,
-                stagedItems: $stagedDownloads,
-                onTransferAll: downloadStaged
-            )
+            unifiedStagingArea
         }
         .overlay(
             isRemoteDropTargeted
@@ -280,9 +316,10 @@ struct MainView: View {
     // MARK: - Remote Toolbar
 
     private var remoteToolbar: some View {
-        HStack(spacing: RD.Spacing.xs) {
-            // Navigation group
-            Group {
+        VStack(spacing: 0) {
+            // Main toolbar row
+            HStack(spacing: RD.Spacing.sm) {
+                // Navigation
                 Button {
                     Task { await sftpService.navigateTo("..") }
                 } label: {
@@ -290,6 +327,7 @@ struct MainView: View {
                 }
                 .help("Go up")
                 .disabled(sftpService.currentPath == "/")
+                .frame(height: 24)
 
                 Button {
                     Task { await sftpService.listDirectory() }
@@ -297,13 +335,7 @@ struct MainView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh")
-
-                Button {
-                    showHiddenRemoteFiles.toggle()
-                } label: {
-                    Image(systemName: showHiddenRemoteFiles ? "eye" : "eye.slash")
-                }
-                .help(showHiddenRemoteFiles ? "Hide hidden files" : "Show hidden files")
+                .frame(height: 24)
 
                 Picker("", selection: $remoteRoot) {
                     ForEach(RemoteRoot.allCases, id: \.self) { root in
@@ -312,129 +344,162 @@ struct MainView: View {
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
+                .frame(height: 24)
                 .onChange(of: remoteRoot) { _, newValue in
                     Task { await navigateRemoteTo(pathForRoot(newValue)) }
                 }
-            }
-            .frame(height: 24)
 
-            Divider()
-                .frame(height: 16)
+                // Filter field — flex width
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    TextField("Filter\u{2026}", text: $remoteSearchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                    if !remoteSearchText.isEmpty {
+                        Button {
+                            remoteSearchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
 
-            // Search
-            HStack(spacing: 2) {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                TextField("Filter...", text: $remoteSearchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                if !remoteSearchText.isEmpty {
+                // Dry run — visible because it's a paid feature
+                Button {
+                    if storeManager.isPro {
+                        Task {
+                            await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
+                            if transferManager.dryRunResult != nil {
+                                showDryRunPreview = true
+                            }
+                        }
+                    } else {
+                        showPaywall = true
+                    }
+                } label: {
+                    if transferManager.isRunningDryRun {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "eye")
+                    }
+                }
+                .frame(width: 28, height: 24)
+                .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
+                .help("Preview rsync changes")
+
+                // Overflow menu
+                Menu {
                     Button {
-                        remoteSearchText = ""
+                        showHiddenRemoteFiles.toggle()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        Label(
+                            showHiddenRemoteFiles ? "Hide Hidden Files" : "Show Hidden Files",
+                            systemImage: showHiddenRemoteFiles ? "eye" : "eye.slash"
+                        )
                     }
-                    .buttonStyle(.borderless)
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
-            .frame(maxWidth: 150)
 
-            Button {
-                if storeManager.isPro {
-                    showRemoteContentSearch.toggle()
-                    if !showRemoteContentSearch {
-                        remoteRipgrepSearch.cancel()
+                    Button {
+                        if storeManager.isPro {
+                            showRemoteContentSearch.toggle()
+                            if !showRemoteContentSearch {
+                                remoteRipgrepSearch.cancel()
+                            }
+                        } else {
+                            showPaywall = true
+                        }
+                    } label: {
+                        Label("Content Search", systemImage: "doc.text.magnifyingglass")
                     }
-                } else {
-                    showPaywall = true
+
+                    Button {
+                        copyRemotePathToClipboard()
+                    } label: {
+                        Label("Copy Remote Path", systemImage: "doc.on.clipboard")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 13))
                 }
-            } label: {
-                Image(systemName: "doc.text.magnifyingglass")
+                .menuStyle(.borderlessButton)
+                .frame(width: 28, height: 24)
+                .help("More actions")
+
+                StatusBadge(
+                    text: hasMoreRemoteFiles
+                        ? "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
+                        : "\(filteredRemoteFiles.count) items",
+                    color: .secondary
+                )
             }
-            .frame(width: 28, height: 24)
-            .help("Remote content search (rg)")
+            .padding(.horizontal, RD.Spacing.sm)
+            .padding(.vertical, RD.Spacing.xs + 2)
 
-            Spacer()
-
-            // Actions group
+            // Contextual selection bar
             if !remoteSelectedIDs.isEmpty {
-                Button {
-                    stageSelectedFiles()
-                } label: {
-                    Image(systemName: "tray.and.arrow.down")
-                }
-                .frame(width: 28, height: 24)
-                .help("Stage \(selectedRemoteFiles.count) selected for download")
+                Divider()
+                HStack(spacing: RD.Spacing.sm) {
+                    Text("\(selectedRemoteFiles.count) selected")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
 
-                Button {
-                    remoteSelectedIDs = []
-                } label: {
-                    Image(systemName: "xmark.circle")
-                }
-                .buttonStyle(.borderless)
-                .frame(width: 28, height: 24)
-                .help("Deselect all")
-            }
+                    Spacer()
 
-            Button {
-                downloadSelectedToLocalDir()
-            } label: {
-                Image(systemName: "arrow.down.circle.fill")
-            }
-            .frame(width: 28, height: 24)
-            .disabled(selectedRemoteFiles.isEmpty)
-            .help(selectedRemoteFiles.isEmpty ? "Download selected" : "Download \(selectedRemoteFiles.count) selected")
-
-            Button {
-                copyRemotePathToClipboard()
-            } label: {
-                Image(systemName: "doc.on.clipboard")
-            }
-            .buttonStyle(.borderless)
-            .frame(width: 28, height: 24)
-            .help("Copy remote path")
-
-            Button {
-                if storeManager.isPro {
-                    Task {
-                        await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
-                        if transferManager.dryRunResult != nil {
-                            showDryRunPreview = true
+                    Button {
+                        stageSelectedFiles()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "tray.and.arrow.down")
+                                .font(.system(size: 10))
+                            Text("Stage")
+                                .font(.system(size: 11, weight: .medium))
                         }
                     }
-                } else {
-                    showPaywall = true
+                    .buttonStyle(.borderless)
+                    .help("Stage \(selectedRemoteFiles.count) selected for download")
+
+                    Button {
+                        downloadSelectedToLocalDir()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 10))
+                            Text("Download")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Download \(selectedRemoteFiles.count) selected")
+
+                    Button {
+                        remoteSelectedIDs = []
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text("Deselect")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Deselect all")
                 }
-            } label: {
-                if transferManager.isRunningDryRun {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "eye")
-                }
+                .padding(.horizontal, RD.Spacing.sm)
+                .padding(.vertical, RD.Spacing.xs + 1)
+                .background(Color.accentColor.opacity(0.05))
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.spring(response: 0.2, dampingFraction: 0.85), value: remoteSelectedIDs.isEmpty)
             }
-            .frame(width: 28, height: 24)
-            .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
-            .help("Preview rsync changes")
-
-            Divider()
-                .frame(height: 16)
-
-            StatusBadge(
-                text: hasMoreRemoteFiles
-                    ? "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
-                    : "\(filteredRemoteFiles.count) items",
-                color: .secondary
-            )
         }
-        .padding(.horizontal, RD.Spacing.sm)
-        .padding(.vertical, RD.Spacing.xs + 2)
     }
 
     // MARK: - Remote Path Bar
@@ -615,6 +680,7 @@ struct MainView: View {
 
                 Text(file.filename)
                     .font(.system(size: 13))
+                    .fontWeight(.medium)
                     .lineLimit(1)
 
                 Spacer()
@@ -629,7 +695,7 @@ struct MainView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.quaternary)
             }
-            .padding(.vertical, 1)
+            .padding(.vertical, 3)
         }
         .buttonStyle(.plain)
     }
@@ -656,8 +722,8 @@ struct MainView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 1)
-        .padding(.horizontal, isSelected || isHovered ? RD.Spacing.xs : 0)
+        .padding(.vertical, 3)
+        .padding(.horizontal, RD.Spacing.xs)
         .background(
             isSelected
                 ? Color.accentColor.opacity(0.12)
@@ -680,6 +746,135 @@ struct MainView: View {
                 remoteSelectedIDs.remove(file.id)
             } else {
                 remoteSelectedIDs.insert(file.id)
+            }
+        }
+    }
+
+    // MARK: - Unified Staging Area
+
+    private var allStagedItems: [(item: StagedItem, isUpload: Bool)] {
+        let uploads = stagedUploads.map { (item: $0, isUpload: true) }
+        let downloads = stagedDownloads.map { (item: $0, isUpload: false) }
+        return uploads + downloads
+    }
+
+    private var unifiedStagingArea: some View {
+        Group {
+            if stagedUploads.isEmpty && stagedDownloads.isEmpty {
+                // Compact empty hint
+                HStack(spacing: RD.Spacing.sm) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                    Text("Drop files to stage transfers")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                        .strokeBorder(
+                            Color.primary.opacity(0.1),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+                        )
+                )
+                .padding(.horizontal, RD.Spacing.sm)
+                .padding(.vertical, RD.Spacing.sm)
+            } else {
+                VStack(spacing: 0) {
+                    // Header with action buttons
+                    HStack(spacing: RD.Spacing.sm) {
+                        Image(systemName: "tray.full")
+                            .foregroundStyle(Color.riverPrimary)
+                            .font(.system(size: 12))
+
+                        Text("\(allStagedItems.count) file\(allStagedItems.count == 1 ? "" : "s") staged")
+                            .font(.system(size: 11, weight: .medium))
+
+                        Spacer()
+
+                        Button {
+                            withAnimation(.easeOut(duration: 0.1)) {
+                                stagedUploads.removeAll()
+                                stagedDownloads.removeAll()
+                            }
+                        } label: {
+                            Text("Clear")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+
+                        if !stagedUploads.isEmpty {
+                            Button(action: uploadStaged) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 10))
+                                    Text("Upload All")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .foregroundStyle(.green)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(.green.opacity(0.1), in: Capsule())
+                                .overlay(Capsule().strokeBorder(.green.opacity(0.2), lineWidth: 0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if !stagedDownloads.isEmpty {
+                            Button(action: downloadStaged) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .font(.system(size: 10))
+                                    Text("Download All")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .foregroundStyle(.blue)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(.blue.opacity(0.1), in: Capsule())
+                                .overlay(Capsule().strokeBorder(.blue.opacity(0.2), lineWidth: 0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, RD.Spacing.md)
+                    .padding(.top, RD.Spacing.sm)
+                    .padding(.bottom, RD.Spacing.xs)
+
+                    // Mixed list of staged items
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: RD.Spacing.xs) {
+                            ForEach(allStagedItems, id: \.item.id) { entry in
+                                unifiedStagedChip(entry.item, isUpload: entry.isUpload)
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.8).combined(with: .opacity),
+                                        removal: .scale(scale: 0.6).combined(with: .opacity)
+                                    ))
+                            }
+                        }
+                        .padding(.horizontal, RD.Spacing.md)
+                        .padding(.bottom, RD.Spacing.sm)
+                        .animation(.spring(response: 0.16, dampingFraction: 0.82), value: allStagedItems.count)
+                    }
+                }
+                .background(Color.riverPrimary.opacity(0.02))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func unifiedStagedChip(_ item: StagedItem, isUpload: Bool) -> some View {
+        let chipColor: Color = isUpload ? .green : .blue
+        StagedChipView(item: item, chipColor: chipColor, isUpload: isUpload) {
+            withAnimation(.spring(response: 0.14, dampingFraction: 0.82)) {
+                if isUpload {
+                    stagedUploads.removeAll { $0.id == item.id }
+                } else {
+                    stagedDownloads.removeAll { $0.id == item.id }
+                }
             }
         }
     }
@@ -751,7 +946,7 @@ struct MainView: View {
                 }
             }
             .padding(.horizontal, RD.Spacing.md)
-            .padding(.vertical, RD.Spacing.sm)
+            .padding(.vertical, RD.Spacing.xs + 2)
 
             if isTransferLogExpanded && !transferManager.transfers.isEmpty {
                 Divider()
