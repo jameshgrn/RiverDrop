@@ -69,6 +69,7 @@ struct MainView: View {
     @State private var showRemoteContentSearch = false
     @State private var remoteContentSearchQuery = ""
     @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
+    @State private var isTransferLogExpanded = false
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -103,7 +104,7 @@ struct MainView: View {
     }
 
     var body: some View {
-        VSplitView {
+        VStack(spacing: 0) {
             HSplitView {
                 LocalBrowserView(
                     localCurrentDirectory: $localCurrentDirectory,
@@ -113,8 +114,8 @@ struct MainView: View {
                 remoteBrowser
                     .frame(minWidth: 350)
             }
+            Divider()
             transferLog
-                .frame(minHeight: 100, idealHeight: 150)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -152,11 +153,15 @@ struct MainView: View {
             }
 
             if filteredRemoteFiles.isEmpty {
-                if remoteSearchText.isEmpty {
-                    ContentUnavailableView("Empty Directory", systemImage: "folder")
-                } else {
-                    ContentUnavailableView("No matches", systemImage: "magnifyingglass")
+                VStack(spacing: 4) {
+                    Image(systemName: remoteSearchText.isEmpty ? "folder" : "magnifyingglass")
+                        .font(.title2)
+                        .foregroundStyle(.tertiary)
+                    Text(remoteSearchText.isEmpty ? "Empty directory" : "No matches")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(displayedRemoteFiles) { file in
@@ -216,12 +221,14 @@ struct MainView: View {
     }
 
     private var remoteToolbar: some View {
-        HStack {
+        HStack(spacing: 4) {
+            // Navigation group
             Button {
                 Task { await sftpService.navigateTo("..") }
             } label: {
                 Image(systemName: "chevron.left")
             }
+            .help("Go up")
             .disabled(sftpService.currentPath == "/")
 
             Button {
@@ -229,6 +236,7 @@ struct MainView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
+            .help("Refresh")
 
             Picker("", selection: $remoteRoot) {
                 ForEach(RemoteRoot.allCases, id: \.self) { root in
@@ -241,6 +249,10 @@ struct MainView: View {
                 Task { await navigateRemoteTo(pathForRoot(newValue)) }
             }
 
+            Divider()
+                .frame(height: 16)
+
+            // Search group
             TextField("Filter...", text: $remoteSearchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 140)
@@ -257,30 +269,32 @@ struct MainView: View {
 
             Spacer()
 
+            // Actions group
             if !remoteSelectedIDs.isEmpty {
-                Button("Deselect All") {
+                Button {
                     remoteSelectedIDs = []
+                } label: {
+                    Image(systemName: "xmark.circle")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption)
+                .help("Deselect all")
             }
 
             Button {
                 downloadSelectedToLocalDir()
             } label: {
-                Label("Download \(selectedRemoteFiles.count > 0 ? "(\(selectedRemoteFiles.count))" : "")",
-                      systemImage: "arrow.down.circle.fill")
+                Image(systemName: "arrow.down.circle.fill")
             }
             .disabled(selectedRemoteFiles.isEmpty)
+            .help(selectedRemoteFiles.isEmpty ? "Download selected" : "Download \(selectedRemoteFiles.count) selected")
 
             Button {
                 copyRemotePathToClipboard()
             } label: {
-                Label("Copy Path", systemImage: "doc.badge.plus")
+                Image(systemName: "doc.on.clipboard")
             }
             .buttonStyle(.borderless)
-            .font(.caption)
-            .help("Copy current remote directory path to clipboard")
+            .help("Copy remote path")
 
             Button {
                 Task {
@@ -294,17 +308,20 @@ struct MainView: View {
                     ProgressView()
                         .controlSize(.small)
                 } else {
-                    Label("Preview Sync", systemImage: "eye")
+                    Image(systemName: "eye")
                 }
             }
             .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
-            .help("Preview what rsync would change between remote and local directories")
+            .help("Preview rsync changes")
+
+            Divider()
+                .frame(height: 16)
 
             Text(hasMoreRemoteFiles
-                ? "Showing \(displayedRemoteFiles.count) of \(filteredRemoteFiles.count)"
+                ? "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
                 : "\(filteredRemoteFiles.count) items")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -523,43 +540,90 @@ struct MainView: View {
 
     // MARK: - Transfer Log
 
+    private var transferSummary: String {
+        let transfers = transferManager.transfers
+        guard !transfers.isEmpty else { return "No transfers" }
+        let active = transfers.filter { $0.status == .inProgress }.count
+        let completed = transfers.filter { $0.status == .completed }.count
+        let failed = transfers.filter { $0.status == .failed }.count
+        let cancelled = transfers.filter { $0.status == .cancelled }.count
+        var parts: [String] = []
+        if active > 0 { parts.append("\(active) active") }
+        if completed > 0 { parts.append("\(completed) done") }
+        if failed > 0 { parts.append("\(failed) failed") }
+        if cancelled > 0 { parts.append("\(cancelled) cancelled") }
+        return parts.isEmpty ? "No transfers" : parts.joined(separator: ", ")
+    }
+
+    private var hasActiveTransfers: Bool {
+        transferManager.transfers.contains { $0.status == .inProgress }
+    }
+
     private var transferLog: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 6) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isTransferLogExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: isTransferLogExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                }
+                .buttonStyle(.borderless)
+
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Text("Transfers")
-                    .font(.headline)
+                    .font(.caption)
+                    .fontWeight(.medium)
+
+                Text(transferSummary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+
                 Spacer()
+
+                if hasActiveTransfers {
+                    ProgressView()
+                        .controlSize(.mini)
+                }
+
                 if !transferManager.transfers.isEmpty {
-                    Button("Clear") {
+                    Button {
                         transferManager.transfers.removeAll(where: { $0.status != .inProgress })
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
                     }
                     .buttonStyle(.borderless)
-                    .font(.caption)
+                    .help("Clear completed transfers")
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
 
-            Divider()
-
-            if transferManager.transfers.isEmpty {
-                ContentUnavailableView("No transfers", systemImage: "arrow.up.arrow.down")
-                    .frame(maxWidth: .infinity)
-            } else {
+            if isTransferLogExpanded && !transferManager.transfers.isEmpty {
+                Divider()
                 List(transferManager.transfers) { item in
                     HStack {
                         Image(systemName: item.isUpload ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
                             .foregroundStyle(item.isUpload ? .green : .blue)
                         Text(item.filename)
                             .lineLimit(1)
+                            .font(.caption)
                         Spacer()
                         if item.status == .inProgress {
                             ProgressView(value: item.progress)
-                                .frame(width: 100)
+                                .frame(width: 80)
                             Text("\(Int(item.progress * 100))%")
-                                .font(.caption)
+                                .font(.caption2)
                                 .monospacedDigit()
-                                .frame(width: 36, alignment: .trailing)
+                                .frame(width: 30, alignment: .trailing)
                             Button {
                                 transferManager.cancelTransfer(id: item.id)
                             } label: {
@@ -570,13 +634,17 @@ struct MainView: View {
                             .help("Cancel transfer")
                         } else {
                             Text(item.status.rawValue)
-                                .font(.caption)
+                                .font(.caption2)
                                 .foregroundStyle(transferStatusColor(for: item.status))
                         }
                     }
                 }
                 .listStyle(.inset)
+                .frame(minHeight: 60, maxHeight: 150)
             }
+        }
+        .onChange(of: hasActiveTransfers) { _, active in
+            if active { isTransferLogExpanded = true }
         }
     }
 

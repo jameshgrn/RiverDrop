@@ -130,17 +130,20 @@ struct LocalBrowserView: View {
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        HStack {
+        HStack(spacing: 4) {
+            // Navigation group
             Button {
                 navigateTo(localCurrentDirectory.deletingLastPathComponent())
             } label: {
                 Image(systemName: "chevron.left")
             }
+            .help("Go up")
             .disabled(localCurrentDirectory.path == "/")
 
             Button { loadDirectory() } label: {
                 Image(systemName: "arrow.clockwise")
             }
+            .help("Refresh")
 
             Menu {
                 ForEach(Self.bookmarks, id: \.path) { bookmark in
@@ -159,6 +162,10 @@ struct LocalBrowserView: View {
             .fixedSize()
             .help("Bookmarks")
 
+            Divider()
+                .frame(height: 16)
+
+            // Search group
             TextField("Filter...", text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 140)
@@ -180,42 +187,49 @@ struct LocalBrowserView: View {
 
             Spacer()
 
+            // Actions group
             if !recentlyDownloaded.isEmpty {
-                Button("Clear Highlights") {
+                Button {
                     recentlyDownloaded = []
+                } label: {
+                    Image(systemName: "sparkles")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption)
+                .help("Clear download highlights")
             }
 
             if !selectedIDs.isEmpty {
-                Button("Deselect All") {
+                Button {
                     selectedIDs = []
+                } label: {
+                    Image(systemName: "xmark.circle")
                 }
                 .buttonStyle(.borderless)
-                .font(.caption)
+                .help("Deselect all")
             }
 
             Button { uploadSelected() } label: {
-                Label("Upload \(selectedFiles.count > 0 ? "(\(selectedFiles.count))" : "")",
-                      systemImage: "arrow.up.circle.fill")
+                Image(systemName: "arrow.up.circle.fill")
             }
             .disabled(selectedFiles.isEmpty || !sftpService.isConnected)
+            .help(selectedFiles.isEmpty ? "Upload selected" : "Upload \(selectedFiles.count) selected")
 
             Button {
                 copyLocalPathToClipboard()
             } label: {
-                Label("Copy Path", systemImage: "doc.badge.plus")
+                Image(systemName: "doc.on.clipboard")
             }
             .buttonStyle(.borderless)
-            .font(.caption)
-            .help("Copy current directory path to clipboard")
+            .help("Copy local path")
+
+            Divider()
+                .frame(height: 16)
 
             Text(hasMoreFiles
-                ? "Showing \(displayedFiles.count) of \(filteredFiles.count)"
+                ? "\(displayedFiles.count)/\(filteredFiles.count)"
                 : "\(filteredFiles.count) items")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -381,11 +395,15 @@ struct LocalBrowserView: View {
     private var fileList: some View {
         Group {
             if filteredFiles.isEmpty {
-                if searchText.isEmpty {
-                    ContentUnavailableView("Empty Directory", systemImage: "folder")
-                } else {
-                    ContentUnavailableView("No matches", systemImage: "magnifyingglass")
+                VStack(spacing: 4) {
+                    Image(systemName: searchText.isEmpty ? "folder" : "magnifyingglass")
+                        .font(.title2)
+                        .foregroundStyle(.tertiary)
+                    Text(searchText.isEmpty ? "Empty directory" : "No matches")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(displayedFiles) { file in
