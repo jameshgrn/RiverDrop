@@ -63,6 +63,8 @@ struct MainView: View {
     @State private var recentlyDownloaded: Set<String> = []
     @State private var isRemoteDropTargeted = false
     @State private var remoteSearchText = ""
+    @State private var showDryRunPreview = false
+    @AppStorage("alwaysPreviewBeforeSync") private var alwaysPreviewBeforeSync = false
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -163,6 +165,20 @@ struct MainView: View {
             handleRemoteDrop(providers)
             return true
         }
+        .sheet(isPresented: $showDryRunPreview) {
+            if let result = transferManager.dryRunResult {
+                DryRunPreviewView(
+                    result: result,
+                    onConfirm: {
+                        showDryRunPreview = false
+                        // TODO: trigger actual directory sync
+                    },
+                    onCancel: {
+                        showDryRunPreview = false
+                    }
+                )
+            }
+        }
     }
 
     private var remoteToolbar: some View {
@@ -221,6 +237,24 @@ struct MainView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .help("Copy current remote directory path to clipboard")
+
+            Button {
+                Task {
+                    await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
+                    if transferManager.dryRunResult != nil {
+                        showDryRunPreview = true
+                    }
+                }
+            } label: {
+                if transferManager.isRunningDryRun {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Preview Sync", systemImage: "eye")
+                }
+            }
+            .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
+            .help("Preview what rsync would change between remote and local directories")
 
             Text("\(filteredRemoteFiles.count) items")
                 .font(.caption)

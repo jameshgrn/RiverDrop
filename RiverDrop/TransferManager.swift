@@ -27,6 +27,8 @@ private let transferLogger = Logger(subsystem: "com.riverdrop.app", category: "t
 @MainActor
 final class TransferManager: ObservableObject {
     @Published var transfers: [TransferItem] = []
+    @Published var dryRunResult: DryRunResult?
+    @Published var isRunningDryRun = false
 
     var onDownloadCompleted: ((String) -> Void)?
 
@@ -538,6 +540,44 @@ final class TransferManager: ObservableObject {
             cleanupTask(id: itemID)
         }
         activeTasks[itemID] = task
+    }
+
+    // MARK: - Dry Run
+
+    func runDryRunDownload(localDir: URL) async {
+        guard sftpService.isConnected else {
+            sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
+            return
+        }
+        guard RsyncTransfer.isAvailable else {
+            sftpService.errorMessage = "Dry-run failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
+            return
+        }
+        guard let password = retrievePassword() else {
+            sftpService.errorMessage = "Dry-run failed: no stored password. Suggested fix: reconnect to the server."
+            return
+        }
+
+        isRunningDryRun = true
+        dryRunResult = nil
+
+        let rsync = RsyncTransfer()
+        do {
+            let result = try await rsync.dryRunDownload(
+                remotePath: sftpService.currentPath,
+                localPath: localDir.path,
+                host: sftpService.connectedHost,
+                username: sftpService.connectedUsername,
+                password: password
+            )
+            dryRunResult = result
+        } catch is CancellationError {
+            // user cancelled, nothing to report
+        } catch {
+            sftpService.errorMessage = "Dry-run preview failed: \(error.localizedDescription). Suggested fix: verify connection and try again."
+        }
+
+        isRunningDryRun = false
     }
 
     // MARK: - Rsync Helpers

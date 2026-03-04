@@ -146,6 +146,96 @@ final class RsyncTransfer: @unchecked Sendable {
         }
     }
 
+    // MARK: - Dry Run
+
+    func dryRunDownload(
+        remotePath: String,
+        localPath: String,
+        host: String,
+        username: String,
+        password: String
+    ) async throws -> DryRunResult {
+        let sourcePath = remotePath.hasSuffix("/") ? remotePath : remotePath + "/"
+        let source = "\(username)@\(host):\(sourcePath)"
+        let dest = localPath.hasSuffix("/") ? localPath : localPath + "/"
+        return try await runDryRun(source: source, destination: dest, host: host, password: password)
+    }
+
+    func dryRunUpload(
+        localPath: String,
+        remotePath: String,
+        host: String,
+        username: String,
+        password: String
+    ) async throws -> DryRunResult {
+        let sourcePath = localPath.hasSuffix("/") ? localPath : localPath + "/"
+        let destination = "\(username)@\(host):\(remotePath)"
+        return try await runDryRun(source: sourcePath, destination: destination, host: host, password: password)
+    }
+
+    private func runDryRun(
+        source: String,
+        destination: String,
+        host: String,
+        password: String
+    ) async throws -> DryRunResult {
+        guard let rsyncPath = Self.rsyncPath else {
+            throw RsyncError.notInstalled
+        }
+
+        let askpassScript = try createAskpassScript(password: password)
+        defer { try? FileManager.default.removeItem(atPath: askpassScript) }
+        let knownHostsPath = try createKnownHostsFile(for: host)
+        defer { try? FileManager.default.removeItem(atPath: knownHostsPath) }
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: rsyncPath)
+        proc.arguments = [
+            "-a",
+            "--dry-run",
+            "--delete",
+            "--out-format=%i %l %n",
+            "-e", "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)",
+            source,
+            destination,
+        ]
+        proc.environment = [
+            "SSH_ASKPASS": askpassScript,
+            "SSH_ASKPASS_REQUIRE": "force",
+            "DISPLAY": ":0",
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
+        ]
+        proc.standardInput = FileHandle.nullDevice
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        proc.standardOutput = stdoutPipe
+        proc.standardError = stderrPipe
+
+        try storeProcessIfNotCancelled(proc)
+        try proc.run()
+
+        let stdoutHandle = stdoutPipe.fileHandleForReading
+        let stderrHandle = stderrPipe.fileHandleForReading
+
+        let stdoutData = await Task.detached { stdoutHandle.readDataToEndOfFile() }.value
+        let stderrData = await Task.detached { stderrHandle.readDataToEndOfFile() }.value
+        await Task.detached { proc.waitUntilExit() }.value
+        clearProcess()
+
+        if isTransferCancelled() {
+            throw CancellationError()
+        }
+
+        if proc.terminationStatus != 0 {
+            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+            throw RsyncError.dryRunFailed(exitCode: proc.terminationStatus, stderr: stderr)
+        }
+
+        let output = String(data: stdoutData, encoding: .utf8) ?? ""
+        return parseDryRunOutput(output)
+    }
+
     private func storeProcessIfNotCancelled(_ proc: Process) throws {
         try lock.withLock {
             if isCancelled {
@@ -228,6 +318,7 @@ enum RsyncError: LocalizedError {
     case processFailed(exitCode: Int32)
     case hostKeyMissing(host: String)
     case knownHostsWriteFailed(path: String)
+    case dryRunFailed(exitCode: Int32, stderr: String)
 
     var errorDescription: String? {
         switch self {
@@ -239,6 +330,71 @@ enum RsyncError: LocalizedError {
             return "No trusted host key found for \(host). Connect via SFTP first to trust and store the server key."
         case let .knownHostsWriteFailed(path):
             return "Could not write temporary known_hosts file at \(path)"
+        case let .dryRunFailed(exitCode, stderr):
+            return "rsync dry-run exited with code \(exitCode): \(stderr)"
         }
     }
+}
+
+// MARK: - Dry Run Model
+
+struct DryRunFileEntry: Identifiable, Sendable {
+    let id = UUID()
+    let path: String
+    let size: Int64
+    let change: ChangeType
+
+    enum ChangeType: Sendable {
+        case added, modified, deleted
+    }
+}
+
+struct DryRunResult: Sendable {
+    let added: [DryRunFileEntry]
+    let modified: [DryRunFileEntry]
+    let deleted: [DryRunFileEntry]
+
+    var totalFiles: Int { added.count + modified.count + deleted.count }
+    var isEmpty: Bool { totalFiles == 0 }
+    var totalBytes: Int64 { (added + modified).reduce(0) { $0 + $1.size } }
+}
+
+// MARK: - Dry Run Parsing (free functions — not in @MainActor)
+
+func parseDryRunOutput(_ output: String) -> DryRunResult {
+    let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+    let entries = lines.compactMap { parseDryRunLine(String($0)) }
+    return DryRunResult(
+        added: entries.filter { $0.change == .added },
+        modified: entries.filter { $0.change == .modified },
+        deleted: entries.filter { $0.change == .deleted }
+    )
+}
+
+func parseDryRunLine(_ line: String) -> DryRunFileEntry? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return nil }
+
+    // Delete lines: "*deleting   filename"
+    if trimmed.hasPrefix("*deleting") {
+        let filename = String(trimmed.dropFirst("*deleting".count))
+            .trimmingCharacters(in: .whitespaces)
+        guard !filename.isEmpty else { return nil }
+        return DryRunFileEntry(path: filename, size: 0, change: .deleted)
+    }
+
+    // Itemize format: "YXcstpoguax <size> <filename>" (11-char prefix from --out-format=%i %l %n)
+    guard trimmed.count > 13 else { return nil }
+
+    let itemize = String(trimmed.prefix(11))
+    let fileType = itemize[itemize.index(after: itemize.startIndex)]
+    if fileType == "d" { return nil } // skip directories
+
+    let rest = String(trimmed.dropFirst(11)).trimmingCharacters(in: .whitespaces)
+    let parts = rest.split(separator: " ", maxSplits: 1)
+    guard parts.count == 2, let size = Int64(parts[0]) else { return nil }
+    let filename = String(parts[1])
+
+    let change: DryRunFileEntry.ChangeType = itemize.contains("+++++++++") ? .added : .modified
+    return DryRunFileEntry(path: filename, size: size, change: change)
 }
