@@ -7,9 +7,9 @@ struct PaywallView: View {
     @State private var appeared = false
 
     private let features: [(icon: String, title: String, description: String, tint: Color)] = [
-        ("bolt.fill", "Rsync Transfers", "Faster file transfers using rsync with progress tracking", .orange),
-        ("doc.text.magnifyingglass", "Content Search", "Search inside files using ripgrep", Color.riverPrimary),
-        ("bookmark.fill", "Unlimited Bookmarks", "Save as many folder bookmarks as you need", .purple),
+        ("bolt.fill", "Rsync Acceleration", "Delta sync with real-time progress tracking", .orange),
+        ("doc.text.magnifyingglass", "Remote Content Search (ripgrep)", "Search inside remote files at native speed", Color.riverPrimary),
+        ("arrow.triangle.2.circlepath", "Sync Previews (Dry-Run)", "Preview what will change before transferring", .teal),
     ]
 
     var body: some View {
@@ -133,9 +133,15 @@ struct PaywallView: View {
             }
 
             if let product = storeManager.proProduct {
-                Text(product.displayPrice)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                VStack(spacing: RD.Spacing.xs) {
+                    Text(product.displayPrice)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Text("One-time purchase")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Button {
                     Task { await storeManager.purchase() }
