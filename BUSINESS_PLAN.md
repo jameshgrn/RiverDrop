@@ -1,51 +1,101 @@
 # RiverDrop: Business Plan
 
-RiverDrop is a premium, native macOS utility designed to bridge the gap between local development environments and remote high-performance computing (HPC) or backend infrastructure. By leveraging the speed of `rsync` and the discovery power of `ripgrep`, RiverDrop provides a "Pro" alternative to generic SFTP clients.
+RiverDrop is a native macOS file transfer utility built for researchers and developers who work with remote HPC clusters and backend servers. It wraps `rsync` and `ripgrep` in a drag-and-drop SwiftUI interface — the speed of CLI tools with the context of a GUI.
 
 ---
 
 ### 1. Executive Summary
-**Vision:** To be the default file management utility for researchers and developers who move large datasets and manage remote code.
-**The Problem:** Traditional SFTP clients (Transmit, Cyberduck) use the SFTP protocol for all transfers, which is notoriously slow over high-latency or high-bandwidth connections. Developers often resort to the command line for `rsync` or `rg`, sacrificing the visual context of a GUI.
-**The Solution:** A native SwiftUI application that wraps high-performance CLI tools (`rsync`, `ripgrep`, `ssh`) in a modern, drag-and-drop interface.
+
+**Vision:** The default file management tool for anyone who moves large datasets between local machines and remote servers.
+
+**The Problem:** SFTP clients (Transmit, Cyberduck) transfer entire files on every sync. Over high-latency or high-bandwidth links, this is painfully slow. Researchers and devs fall back to terminal `rsync`, losing visual context. Nobody has combined rsync's differential transfer engine with a native macOS GUI.
+
+**The Solution:** A SwiftUI app that uses `rsync` for transfers and `ripgrep` for search — both local and remote. Drag-and-drop interface with first-class support for HPC directory conventions (Home/Scratch).
 
 ### 2. Market Analysis
+
 **Target Audience:**
-*   **Academic Researchers/HPC Users:** Users working on clusters (e.g., Big Red, Stampede) who frequently move data between "Home" and "Scratch" (`/not_backed_up`) directories.
-*   **Data Scientists:** Professionals syncing large datasets to/from remote GPU instances.
-*   **Backend Developers:** Engineers managing VPS instances who need fast, differential syncing of code and logs.
+
+| Segment | Pain Point | What They Use Now |
+|---------|-----------|-------------------|
+| HPC/Academic Researchers | Moving GBs between Home and Scratch dirs on clusters (Big Red, Stampede, XSEDE) | Terminal rsync, Cyberduck |
+| Data Scientists | Syncing datasets to/from remote GPU instances | scp, Transmit, VS Code Remote |
+| Backend Developers | Fast differential sync of code and logs to VPS | rsync scripts, ForkLift |
 
 **Competitive Landscape:**
-*   **Mass Market (Transmit/ForkLift):** Excellent UI, but focused on broad cloud support (S3, Dropbox). Often lack deep `rsync` integration.
-*   **Open Source (Cyberduck/FileZilla):** Functional but lack native macOS "feel" and performance-centric workflows.
-*   **CLI Tools:** Maximum speed, zero visual context.
 
-### 3. Unique Value Propositions (UVP)
-1.  **Differential Syncing by Default:** Uses `rsync` under the hood to transfer only changed parts of files, making it 5–10x faster than standard SFTP for updates.
-2.  **Specialized Workflows:** Built-in "Scratch" and "Home" toggles specifically for cluster-based research environments.
-3.  **Integrated Discovery:** Built-in `ripgrep` support for local file content searching, with a roadmap for remote execution.
-4.  **Native Performance:** 100% SwiftUI and Swift, ensuring low memory footprint and alignment with macOS security (Sandboxing, Security-Scoped Bookmarks).
+| Competitor | Strengths | Gap RiverDrop Fills |
+|-----------|----------|---------------------|
+| Transmit/ForkLift | Polish, broad cloud support (S3, Dropbox) | No rsync engine; SFTP-only transfers |
+| Cyberduck/FileZilla | Free, cross-platform | Non-native UI, no performance tooling |
+| Terminal rsync/rg | Maximum speed | Zero visual context, no drag-and-drop |
+| VS Code Remote SSH | Integrated editing | Not a file manager; heavy resource use |
+
+### 3. Unique Value Propositions
+
+1. **Rsync-First Transfers:** Differential syncing by default — only changed bytes move over the wire. Dramatically faster than SFTP for iterative workflows (updating a few files in a large project).
+2. **HPC-Native Workflows:** Home/Scratch directory toggles, cluster-aware path conventions, SSH key and 2FA support for institutional login.
+3. **Remote Ripgrep:** Execute `rg` on the server via SSH and stream results back. Search terabytes of remote data without downloading anything.
+4. **Native macOS:** SwiftUI, Keychain credential storage, security-scoped bookmarks, low memory footprint.
 
 ### 4. Revenue Model
-**Pricing Strategy: "Prosumer Indie Utility"**
-*   **Tier 1: Free (Standard SFTP):** Basic file browsing, standard SFTP uploads/downloads.
-*   **Tier 2: Pro License ($14.99 one-time):** Unlocks `rsync` transfer engine, `ripgrep` content search, and unlimited bookmarks.
-*   **Tier 3: Lab/Team License ($49.99/yr):** Priority support and site-wide deployment for research labs.
+
+**Pricing: Indie Prosumer Utility**
+
+| Tier | Price | Features |
+|------|-------|----------|
+| Free | $0 | SFTP browsing, standard SFTP uploads/downloads, basic bookmarks |
+| Pro | $14.99 one-time | Rsync transfer engine, ripgrep search (local + remote), rsync profiles, unlimited bookmarks |
+| Team | $49.99/yr per seat | Volume licensing for research labs, priority support channel |
+
+**Rationale:** One-time Pro purchase aligns with indie Mac app expectations. Subscription reserved for team/institutional buyers who expect invoiceable annual costs.
 
 ### 5. Roadmap
-*   **Phase 1 (Current):** Stable SFTP browsing, basic `rsync` transfers, local `ripgrep`.
-*   **Phase 2 (The "Killer Feature"):** **Remote Ripgrep.** Execute `rg` via SSH on the server and stream results back to the GUI. This allows searching terabytes of remote data in seconds.
-*   **Phase 3:** Custom `rsync` flag profiles (e.g., "Archive Mode," "Delete Extra Files").
-*   **Phase 4:** Terminal integration—right-click "Open Terminal Here" to launch iTerm2/Terminal.app at the remote path.
+
+**Phase 1 — Core (Done):**
+- SFTP browsing and file transfers
+- Rsync transfers with automatic SFTP fallback
+- Local ripgrep content search
+- Drag-and-drop uploads/downloads
+- Fuzzy file search (local + remote)
+- Transfer queue with progress, cancellation, conflict resolution
+- Keychain credential storage, TOFU host key validation
+
+**Phase 2 — Viability (Next):**
+- SSH key authentication (id_ed25519, id_rsa, ssh-agent)
+- Remote ripgrep via SSH
+- Rsync dry-run preview before sync
+- StoreKit 2 paywall (Free/Pro gating)
+- Directory virtualization for 10K+ file listings
+
+**Phase 3 — Polish:**
+- 2FA / keyboard-interactive authentication
+- Custom rsync flag profiles (Archive, Mirror, etc.)
+- Auto-reconnect on network drop
+- "Open Terminal Here" integration (Terminal.app, iTerm2, Ghostty)
+
+**Phase 4 — Growth:**
+- Saved connection profiles with per-host rsync settings
+- Transfer history and statistics
+- Menu bar quick-connect widget
 
 ### 6. Marketing & Distribution
-*   **Distribution:** Mac App Store (for visibility/trust) and Direct Download (via `uv` or Homebrew for the developer crowd).
-*   **Channels:**
-    *   **Academic Forums:** Outreach to university IT departments and research computing groups.
-    *   **Developer Communities:** Product Hunt, Hacker News, and r/macapps.
-    *   **GitHub:** Keep the core engine or a "Lite" version open-source to build trust within the dev community.
+
+**Distribution:**
+- **Mac App Store:** Visibility, trust, sandboxed build.
+- **Direct Download:** Notarized .dmg via GitHub Releases or project website. Homebrew Cask for developer reach.
+
+**Channels:**
+- **Academic:** University IT departments, research computing Slack/Discord, XSEDE/ACCESS user groups.
+- **Developer:** Product Hunt launch, Hacker News Show HN, r/macapps, r/commandline.
+- **Open Source:** Keep the rsync/ripgrep wrapper layer open-source to build trust. Proprietary GUI on top.
 
 ### 7. Technical Operations
-*   **Stack:** Swift 5.10+, SwiftUI, Citadel (SSH/SFTP library).
-*   **Dependencies:** Minimal. Relies on system-installed `rsync` and `rg` (with guidance to install via Homebrew), reducing app bundle size and maintenance overhead.
-*   **Security:** Keychain integration for credentials, TOFU (Trust On First Use) for host keys.
+
+| Concern | Approach |
+|---------|----------|
+| Stack | Swift 6, SwiftUI, Citadel (SSH/SFTP via NIO) |
+| System deps | `rsync` (bundled with macOS), `rg` (optional, Homebrew) |
+| Security | Keychain for credentials, TOFU for host keys, App Sandbox + security-scoped bookmarks |
+| Distribution | Xcode Archive → App Store Connect; or `xcodebuild` → notarize → .dmg |
+| CI | GitHub Actions with `xcodebuild test` on macOS runners |

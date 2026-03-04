@@ -1,30 +1,49 @@
 # Viability & Trust Checklist
 
-For a tool that manages remote servers and sensitive data, "viability" isn't just about features; it's about **predictability** and **security**. Users need to know the app won't delete their data or leak their credentials.
+For a tool that manages remote servers and sensitive data, viability means **predictability** and **security**. Users need confidence the app won't delete their data or leak their credentials.
 
 ## 1. Security & Credential Management
-*   **[ ] SSH Key Support:** Most pro users (HPC/Backend) disable password login entirely. The app *must* support `id_rsa`, `id_ed25519`, and `ssh-agent` integration.
-*   **[ ] Proper Keychain Integration:** Credentials must be stored in the macOS Keychain with appropriate access controls (currently partially implemented).
-*   **[ ] Host Key Validation:** Prevent Man-in-the-Middle (MITM) attacks by rigorously verifying host fingerprints (implemented via TOFU, but needs a "View/Reset Key" UI).
-*   **[ ] Two-Factor Authentication (2FA):** Support for Duo/Google Authenticator prompts during SSH connection (keyboard-interactive authentication).
 
-## 2. Safety & Data Integrity (The "Don't Break It" Layer)
-*   **[ ] Rsync Dry-Run Preview:** Before a massive sync, show a "diff" or a list of files that will be added/deleted.
-*   **[ ] Conflict Detection:** Warning if a file has been modified on the server *and* locally since the last sync.
-*   **[ ] Destructive Action Confirmation:** Explicit "Are you sure?" prompts for `rm` operations or `rsync --delete`.
-*   **[ ] Atomic Transfers:** Ensure partial transfers don't leave corrupted files (rsync handles this well, but the UI must report it).
+- [x] **Keychain Integration:** Credentials stored in macOS Keychain with `com.riverdrop.sftp` service identifier.
+- [x] **Host Key Validation (TOFU):** First-use fingerprint stored, verified on subsequent connections.
+- [ ] **SSH Key Support:** Must support `id_rsa`, `id_ed25519`, and `ssh-agent`. Most HPC users disable password login entirely.
+- [ ] **Host Key Management UI:** "View/Reset Key" interface for stored host fingerprints.
+- [ ] **2FA / Keyboard-Interactive Auth:** Duo, Google Authenticator prompts during SSH connection.
+
+## 2. Safety & Data Integrity
+
+- [x] **Conflict Detection (Basic):** Detects if destination file exists; offers Replace/Rename/Cancel.
+- [x] **Atomic Transfers:** Rsync `--partial` prevents corrupted files from partial transfers.
+- [ ] **Rsync Dry-Run Preview:** Show a diff of files that will be added/modified/deleted before executing.
+- [ ] **Advanced Conflict Detection:** Warn when a file has been modified both locally and remotely since last sync.
+- [ ] **Destructive Action Confirmation:** Explicit confirmation for `rsync --delete` or remote `rm` operations.
 
 ## 3. Robustness & Error Handling
-*   **[ ] Automatic Reconnection:** If the Wi-Fi drops, the app should pause transfers and resume once the connection is back.
-*   **[ ] Path Validation:** Sanitize remote paths to prevent accidental command injection or "Directory Traversal" attacks.
-*   **[ ] Permission Checks:** Clearly explain *why* an upload failed (e.g., "Permission Denied on /root" vs. "Disk Full").
+
+- [x] **Actionable Errors:** All errors include description + "Suggested fix" text.
+- [x] **Structured Logging:** OSLog with subsystem/category for transfer telemetry.
+- [x] **Cancellation Support:** Both rsync (process kill) and SFTP transfers can be cancelled mid-flight.
+- [ ] **Automatic Reconnection:** Pause transfers on Wi-Fi drop, resume when connection restores.
+- [ ] **Path Validation:** Sanitize remote paths to prevent command injection.
 
 ## 4. Platform Compliance
-*   **[ ] App Sandbox Compliance:** If targeted for the App Store, all file access must be via Powerbox (NSOpenPanel) and Security-Scoped Bookmarks (implemented).
-*   **[ ] Hardened Runtime & Notarization:** Required for any app distributed outside the App Store to pass macOS Gatekeeper.
-*   **[ ] Privacy Manifests:** Declare usage of any sensitive APIs to comply with modern Apple privacy standards.
 
-## 5. Performance for "Big Data"
-*   **[ ] Directory Pagination/Virtualization:** Large directories (10,000+ files) should not freeze the UI.
-*   **[ ] Background Transfer Queue:** Ability to queue up 1,000+ files without blocking the main browser view (implemented via `TransferManager`).
-*   **[ ] Progress Metrics:** Real-time throughput (MB/s) and Estimated Time of Arrival (ETA).
+- [x] **Security-Scoped Bookmarks:** Local file access persisted across launches.
+- [x] **Network Client Entitlement:** SSH/SFTP outbound connections allowed.
+- [ ] **App Sandbox:** Currently disabled (`com.apple.security.app-sandbox = false`). Required for App Store.
+- [ ] **Hardened Runtime & Notarization:** Required for direct-download distribution.
+- [ ] **Privacy Manifests:** Declare sensitive API usage per modern Apple requirements.
+
+## 5. Performance
+
+- [x] **Background Transfer Queue:** `TransferManager` handles queued transfers without blocking UI.
+- [x] **Progress Metrics:** Real-time percentage, transfer rate (MiB/s), duration tracking.
+- [x] **Rsync with SFTP Fallback:** Automatic fallback if rsync is unavailable or fails.
+- [ ] **Directory Virtualization:** Large directories (10K+ files) need lazy loading to avoid UI freezes.
+- [ ] **Transfer Rate Display in UI:** Surface the MiB/s and ETA metrics already computed in the log.
+
+## 6. Monetization
+
+- [ ] **StoreKit 2 Integration:** In-app purchase for Pro tier ($14.99).
+- [ ] **Feature Gating:** Free tier limited to SFTP; Pro unlocks rsync, ripgrep, unlimited bookmarks.
+- [ ] **Restore Purchases:** Handle App Store receipt validation and purchase restoration.
