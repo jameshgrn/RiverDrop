@@ -8,4 +8,8 @@ enum DefaultsKey {
     static let showHiddenLocalFiles = "showHiddenLocalFiles"
     static let showHiddenRemoteFiles = "showHiddenRemoteFiles"
     static let sandboxBookmarkPrefix = "SandboxBookmark_"
+    static let defaultLocalDirectory = "defaultLocalDirectory"
+    static let defaultPort = "defaultPort"
+    static let rememberCredentials = "rememberCredentials"
+    static let alwaysPreviewBeforeSync = "alwaysPreviewBeforeSync"
 }

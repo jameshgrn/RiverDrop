@@ -138,13 +138,14 @@ struct MainView: View {
 
     @State private var showPaywall = false
     @State private var remoteSelectedIDs: Set<RemoteFileItem.ID> = []
+    @AppStorage(DefaultsKey.defaultLocalDirectory) private var defaultLocalDirectory = ""
     @State private var localCurrentDirectory = URL(fileURLWithPath: "/Users/\(NSUserName())/projects")
     @State private var remoteRoot = RemoteRoot.home
     @State private var recentlyDownloaded: Set<String> = []
     @State private var isRemoteDropTargeted = false
     @State private var remoteSearchText = ""
     @State private var showDryRunPreview = false
-    @AppStorage("alwaysPreviewBeforeSync") private var alwaysPreviewBeforeSync = false
+    @AppStorage(DefaultsKey.alwaysPreviewBeforeSync) private var alwaysPreviewBeforeSync = false
     @State private var remoteDisplayLimit = 200
     @State private var showRemoteContentSearch = false
     @State private var remoteContentSearchQuery = ""
@@ -152,6 +153,7 @@ struct MainView: View {
     @State private var isTransferLogExpanded = false
     @State private var hoveredFileID: RemoteFileItem.ID?
     @State private var stagedDownloads: [StagedItem] = []
+    @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenLocalFiles = false
     @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
     @State private var stagedUploads: [StagedItem] = []
 
@@ -208,7 +210,36 @@ struct MainView: View {
                 }
             }
         }
+        .focusedSceneValue(\.isConnected, sftpService.isConnected)
+        .focusedSceneValue(\.disconnect, { [weak sftpService] in
+            guard let sftpService else { return }
+            Task { await sftpService.disconnect() }
+        })
+        .focusedSceneValue(\.refresh, { [weak sftpService] in
+            guard let sftpService else { return }
+            Task { await sftpService.listDirectory() }
+        })
+        .focusedSceneValue(\.showHiddenLocalFiles, $showHiddenLocalFiles)
+        .focusedSceneValue(\.showHiddenRemoteFiles, $showHiddenRemoteFiles)
+        .focusedSceneValue(\.isTransferLogExpanded, $isTransferLogExpanded)
+        .focusedSceneValue(\.navigateToBookmark, { path in
+            if path == "__open_panel__" {
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.allowsMultipleSelection = false
+                panel.prompt = "Navigate"
+                if panel.runModal() == .OK, let url = panel.url {
+                    localCurrentDirectory = url
+                }
+            } else {
+                localCurrentDirectory = URL(fileURLWithPath: path)
+            }
+        })
         .onAppear {
+            if !defaultLocalDirectory.isEmpty {
+                localCurrentDirectory = URL(fileURLWithPath: defaultLocalDirectory)
+            }
             transferManager.onDownloadCompleted = { filename in
                 recentlyDownloaded.insert(filename)
             }

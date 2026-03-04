@@ -26,6 +26,8 @@
 		F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */; };
 		A1B2C3D4E5F6071829DSGN01 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */; };
 		A1B2C3D4E5F6071829DRPZ01 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */; };
+		A1B2C3D4E5F6071829STGS01 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829STGS00 /* SettingsView.swift */; };
+		A1B2C3D4E5F6071829FVAL01 /* FocusedValues+RiverDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829FVAL00 /* FocusedValues+RiverDrop.swift */; };
 		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
 /* End PBXBuildFile section */
 
@@ -52,6 +54,8 @@
 		3C4D5E6F70819204B5C6E0F1 /* RiverDrop.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = RiverDrop.storekit; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829STGS00 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829FVAL00 /* FocusedValues+RiverDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusedValues+RiverDrop.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,6 +86,7 @@
 				A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */,
 				A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */,
 				F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */,
+				A1B2C3D4E5F6071829FVAL00 /* FocusedValues+RiverDrop.swift */,
 				F92F4E94228FEDA36172E00B /* KeychainHelper.swift */,
 				E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */,
 				D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */,
@@ -94,6 +99,7 @@
 				475DC44F97CE166D9CB71385 /* RiverDropApp.swift */,
 				3C4D5E6F70819204B5C6E0F1 /* RiverDrop.storekit */,
 				B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */,
+				A1B2C3D4E5F6071829STGS00 /* SettingsView.swift */,
 				12B074F1E942FFDA1B37584C /* SFTPService.swift */,
 				F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */,
 				F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */,
@@ -191,6 +197,8 @@
 				892BA864188D054CBA8A031C /* SFTPService.swift in Sources */,
 				F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */,
 				A5B6C7D8E9F01234567890AB /* StoreManager.swift in Sources */,
+				A1B2C3D4E5F6071829STGS01 /* SettingsView.swift in Sources */,
+				A1B2C3D4E5F6071829FVAL01 /* FocusedValues+RiverDrop.swift in Sources */,
 				59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
