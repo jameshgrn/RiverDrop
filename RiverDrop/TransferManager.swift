@@ -33,6 +33,7 @@ final class TransferManager: ObservableObject {
     var onDownloadCompleted: ((String) -> Void)?
 
     private let sftpService: SFTPService
+    private let storeManager: StoreManager
     private var activeTasks: [UUID: Task<Void, Never>] = [:]
     private var activeRsyncs: [UUID: RsyncTransfer] = [:]
 
@@ -41,8 +42,9 @@ final class TransferManager: ObservableObject {
         case fullPath(String)
     }
 
-    init(sftpService: SFTPService) {
+    init(sftpService: SFTPService, storeManager: StoreManager) {
         self.sftpService = sftpService
+        self.storeManager = storeManager
     }
 
     // MARK: - Cancel
@@ -179,7 +181,7 @@ final class TransferManager: ObservableObject {
             : destinationPath + "/" + localURL.lastPathComponent
 
         let rsyncPassword = retrievePassword()
-        let useRsync = RsyncTransfer.isAvailable && rsyncPassword != nil
+        let useRsync = RsyncTransfer.isAvailable && rsyncPassword != nil && storeManager.isPro
 
         let task = Task {
             if useRsync, let rsyncPassword {
@@ -395,7 +397,7 @@ final class TransferManager: ObservableObject {
         let transferSize = size
 
         let rsyncPassword = retrievePassword()
-        let useRsync = RsyncTransfer.isAvailable && rsyncPassword != nil
+        let useRsync = RsyncTransfer.isAvailable && rsyncPassword != nil && storeManager.isPro
 
         let task = Task {
             if useRsync, let rsyncPassword {

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct LocalBrowserView: View {
     @EnvironmentObject var transferManager: TransferManager
     @EnvironmentObject var sftpService: SFTPService
+    @EnvironmentObject var storeManager: StoreManager
 
     @Binding var localCurrentDirectory: URL
     @Binding var recentlyDownloaded: Set<String>
@@ -13,9 +14,11 @@ struct LocalBrowserView: View {
     @State private var hasRequestedAccess = false
     @State private var activeSecurityScopedURL: URL?
     @State private var searchText = ""
+    @State private var localDisplayLimit = 200
     @State private var showContentSearch = false
     @State private var contentSearchQuery = ""
     @StateObject private var ripgrepSearch = RipgrepSearch()
+    @State private var showPaywall = false
 
     private static let bookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -40,6 +43,14 @@ struct LocalBrowserView: View {
         let substringHits = files
             .filter { $0.filename.lowercased().contains(lower) }
         return substringHits
+    }
+
+    private var displayedFiles: [LocalFileItem] {
+        Array(filteredFiles.prefix(localDisplayLimit))
+    }
+
+    private var hasMoreFiles: Bool {
+        localDisplayLimit < filteredFiles.count
     }
 
     var body: some View {
@@ -75,8 +86,14 @@ struct LocalBrowserView: View {
         .onChange(of: recentlyDownloaded) { _, _ in
             loadDirectory()
         }
+        .onChange(of: searchText) { _, _ in
+            localDisplayLimit = 200
+        }
         .onDisappear {
             stopSecurityScopedAccess()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 
@@ -117,9 +134,13 @@ struct LocalBrowserView: View {
                 .frame(maxWidth: 140)
 
             Button {
-                showContentSearch.toggle()
-                if !showContentSearch {
-                    ripgrepSearch.cancel()
+                if storeManager.isPro {
+                    showContentSearch.toggle()
+                    if !showContentSearch {
+                        ripgrepSearch.cancel()
+                    }
+                } else {
+                    showPaywall = true
                 }
             } label: {
                 Image(systemName: "doc.text.magnifyingglass")
@@ -160,7 +181,9 @@ struct LocalBrowserView: View {
             .font(.caption)
             .help("Copy current directory path to clipboard")
 
-            Text("\(filteredFiles.count) items")
+            Text(hasMoreFiles
+                ? "Showing \(displayedFiles.count) of \(filteredFiles.count)"
+                : "\(filteredFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -287,11 +310,25 @@ struct LocalBrowserView: View {
                 }
             } else {
                 List {
-                    ForEach(filteredFiles) { file in
+                    ForEach(displayedFiles) { file in
                         if file.isDirectory {
                             folderRow(file)
                         } else {
                             fileRow(file)
+                        }
+                    }
+                    if hasMoreFiles {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading more...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .onAppear {
+                            localDisplayLimit += 200
                         }
                     }
                 }
@@ -392,6 +429,7 @@ struct LocalBrowserView: View {
         selectedIDs = []
         recentlyDownloaded = []
         searchText = ""
+        localDisplayLimit = 200
         loadDirectory()
     }
 

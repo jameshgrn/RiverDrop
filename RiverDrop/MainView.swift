@@ -65,6 +65,10 @@ struct MainView: View {
     @State private var remoteSearchText = ""
     @State private var showDryRunPreview = false
     @AppStorage("alwaysPreviewBeforeSync") private var alwaysPreviewBeforeSync = false
+    @State private var remoteDisplayLimit = 200
+    @State private var showRemoteContentSearch = false
+    @State private var remoteContentSearchQuery = ""
+    @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
 
     private enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -88,6 +92,14 @@ struct MainView: View {
         let substringHits = sftpService.files
             .filter { $0.filename.lowercased().contains(lower) }
         return substringHits
+    }
+
+    private var displayedRemoteFiles: [RemoteFileItem] {
+        Array(filteredRemoteFiles.prefix(remoteDisplayLimit))
+    }
+
+    private var hasMoreRemoteFiles: Bool {
+        remoteDisplayLimit < filteredRemoteFiles.count
     }
 
     var body: some View {
@@ -134,6 +146,11 @@ struct MainView: View {
             remotePathBar
             Divider()
 
+            if showRemoteContentSearch {
+                remoteContentSearchPanel
+                Divider()
+            }
+
             if filteredRemoteFiles.isEmpty {
                 if remoteSearchText.isEmpty {
                     ContentUnavailableView("Empty Directory", systemImage: "folder")
@@ -142,11 +159,25 @@ struct MainView: View {
                 }
             } else {
                 List {
-                    ForEach(filteredRemoteFiles) { file in
+                    ForEach(displayedRemoteFiles) { file in
                         if file.isDirectory {
                             remoteFolderRow(file)
                         } else {
                             remoteFileRow(file)
+                        }
+                    }
+                    if hasMoreRemoteFiles {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading more...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .onAppear {
+                            remoteDisplayLimit += 200
                         }
                     }
                 }
@@ -179,6 +210,9 @@ struct MainView: View {
                 )
             }
         }
+        .onChange(of: remoteSearchText) { _, _ in
+            remoteDisplayLimit = 200
+        }
     }
 
     private var remoteToolbar: some View {
@@ -210,6 +244,16 @@ struct MainView: View {
             TextField("Filter...", text: $remoteSearchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 140)
+
+            Button {
+                showRemoteContentSearch.toggle()
+                if !showRemoteContentSearch {
+                    remoteRipgrepSearch.cancel()
+                }
+            } label: {
+                Image(systemName: "doc.text.magnifyingglass")
+            }
+            .help("Remote content search (rg)")
 
             Spacer()
 
@@ -256,7 +300,9 @@ struct MainView: View {
             .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
             .help("Preview what rsync would change between remote and local directories")
 
-            Text("\(filteredRemoteFiles.count) items")
+            Text(hasMoreRemoteFiles
+                ? "Showing \(displayedRemoteFiles.count) of \(filteredRemoteFiles.count)"
+                : "\(filteredRemoteFiles.count) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -285,6 +331,94 @@ struct MainView: View {
             .padding(.vertical, 4)
         }
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var remoteContentSearchPanel: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField("Search file contents...", text: $remoteContentSearchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        remoteRipgrepSearch.search(
+                            query: remoteContentSearchQuery,
+                            in: sftpService.currentPath,
+                            via: sftpService
+                        )
+                    }
+
+                if remoteRipgrepSearch.isSearching {
+                    Button {
+                        remoteRipgrepSearch.cancel()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button {
+                        guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        remoteRipgrepSearch.search(
+                            query: remoteContentSearchQuery,
+                            in: sftpService.currentPath,
+                            via: sftpService
+                        )
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+
+            if let error = remoteRipgrepSearch.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+            }
+
+            if remoteRipgrepSearch.isSearching {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Searching...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+            }
+
+            if !remoteRipgrepSearch.results.isEmpty {
+                List(remoteRipgrepSearch.results) { result in
+                    Button {
+                        Task { await navigateRemoteTo(result.directoryPath) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(result.filePath)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            HStack(spacing: 4) {
+                                Text("L\(result.lineNumber)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .monospacedDigit()
+                                Text(result.content)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.inset)
+                .frame(maxHeight: 200)
+            }
+        }
+        .padding(.bottom, 4)
     }
 
     private var remotePathComponents: [(name: String, path: String)] {
@@ -322,6 +456,7 @@ struct MainView: View {
         await sftpService.listDirectory()
         remoteSelectedIDs = []
         remoteSearchText = ""
+        remoteDisplayLimit = 200
     }
 
     private func remoteFolderRow(_ file: RemoteFileItem) -> some View {

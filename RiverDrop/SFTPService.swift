@@ -17,6 +17,14 @@ final class SFTPService: ObservableObject {
     private let session = SFTPSession()
 
     func connect(host: String, username: String, password: String) async {
+        await connect(host: host, username: username, auth: .password(password))
+    }
+
+    func connect(host: String, username: String, keyPath: String, passphrase: String?) async {
+        await connect(host: host, username: username, auth: .sshKey(keyPath: keyPath, passphrase: passphrase))
+    }
+
+    private func connect(host: String, username: String, auth: SSHAuthConfig) async {
         let knownHostKey = HostKeyStore.load(for: host)
         let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
 
@@ -24,7 +32,7 @@ final class SFTPService: ObservableObject {
             let resolvedHome = try await session.connect(
                 host: host,
                 username: username,
-                password: password,
+                auth: auth,
                 hostKeyValidator: .custom(validator)
             )
 
@@ -114,6 +122,10 @@ final class SFTPService: ObservableObject {
         await listDirectory()
     }
 
+    func executeCommand(_ command: String, mergeStreams: Bool = true) async throws -> String {
+        try await session.executeCommand(command, mergeStreams: mergeStreams)
+    }
+
     func uploadFile(
         localURL: URL,
         to destinationPath: String,
@@ -187,12 +199,24 @@ private actor SFTPSession {
     func connect(
         host: String,
         username: String,
-        password: String,
+        auth: SSHAuthConfig,
         hostKeyValidator: SSHHostKeyValidator
     ) async throws -> String {
+        let authMethod: SSHAuthenticationMethod
+        switch auth {
+        case let .password(password):
+            authMethod = .passwordBased(username: username, password: password)
+        case let .sshKey(keyPath, passphrase):
+            authMethod = try SSHKeyManager.buildAuthMethod(
+                keyPath: keyPath,
+                username: username,
+                passphrase: passphrase
+            )
+        }
+
         let client = try await SSHClient.connect(
             host: host,
-            authenticationMethod: .passwordBased(username: username, password: password),
+            authenticationMethod: authMethod,
             hostKeyValidator: hostKeyValidator,
             reconnect: .never
         )
@@ -260,6 +284,12 @@ private actor SFTPSession {
     func resolvePath(atPath path: String) async throws -> String {
         guard let sftp = sftpClient else { throw SFTPError.notConnected }
         return try await sftp.getRealPath(atPath: path)
+    }
+
+    func executeCommand(_ command: String, mergeStreams: Bool = true) async throws -> String {
+        guard let ssh = sshClient else { throw SFTPError.notConnected }
+        var buffer = try await ssh.executeCommand(command, mergeStreams: mergeStreams, inShell: true)
+        return buffer.readString(length: buffer.readableBytes) ?? ""
     }
 
     func uploadFile(
