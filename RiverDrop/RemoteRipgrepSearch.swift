@@ -35,7 +35,11 @@ final class RemoteRipgrepSearch: ObservableObject {
 
             let escapedQuery = trimmed.replacingOccurrences(of: "'", with: "'\\''")
             let escapedDir = directory.replacingOccurrences(of: "'", with: "'\\''")
-            let command = "rg --line-number --no-heading --color never --max-count 100 --max-columns 200 -- '\(escapedQuery)' '\(escapedDir)' 2>/dev/null"
+            
+            // Remove 2>/dev/null to capture errors, and use echo $? to capture the exit code.
+            // Wrapping in (...) ensures we get the exit code of rg specifically.
+            let rgCommand = "rg --line-number --no-heading --color never --max-count 100 --max-columns 200 -- '\(escapedQuery)' '\(escapedDir)'"
+            let command = "(\(rgCommand)); echo $?"
 
             let output: String
             do {
@@ -48,12 +52,29 @@ final class RemoteRipgrepSearch: ObservableObject {
 
             guard !Task.isCancelled else { return }
 
-            results = output
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .compactMap { line -> RemoteRipgrepResult? in
-                    guard let m = parseRipgrepFields(String(line)) else { return nil }
+            let lines = output.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+            
+            guard let lastLine = lines.last, 
+                  let exitCode = Int(lastLine.trimmingCharacters(in: .whitespaces)) else {
+                errorMessage = "Remote search failed: Could not determine search exit status"
+                return
+            }
+
+            let resultLines = lines.dropLast()
+
+            if exitCode == 0 {
+                results = resultLines.compactMap { line in
+                    guard let m = parseRipgrepFields(line) else { return nil }
                     return RemoteRipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
                 }
+            } else if exitCode == 1 {
+                // Exit code 1 means no matches found, which is not an error.
+                results = []
+            } else {
+                // Exit code 2 or others (like 127) are errors.
+                let errorOutput = resultLines.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
+                errorMessage = errorOutput.isEmpty ? "Remote search failed with exit code \(exitCode)" : errorOutput
+            }
         }
     }
 
