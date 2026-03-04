@@ -85,6 +85,26 @@ final class RsyncTransfer: @unchecked Sendable {
         )
     }
 
+    func syncUpload(
+        localPath: String,
+        remotePath: String,
+        host: String,
+        username: String,
+        auth: RsyncAuth,
+        progressHandler: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        let sourcePath = localPath.hasSuffix("/") ? localPath : localPath + "/"
+        let dest = remotePath.hasSuffix("/") ? remotePath : remotePath + "/"
+        let destination = "\(username)@\(host):\(dest)"
+        try await runSync(
+            source: sourcePath,
+            destination: destination,
+            host: host,
+            auth: auth,
+            progressHandler: progressHandler
+        )
+    }
+
     private func run(
         source: String,
         destination: String,

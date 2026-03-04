@@ -818,6 +818,97 @@ final class TransferManager: ObservableObject {
         activeTasks[itemID] = task
     }
 
+    func syncUpload(localDir: URL) {
+        guard storeManager.isPro else {
+            sftpService.errorMessage = "Sync failed: Pro subscription required. Suggested fix: upgrade to Pro."
+            return
+        }
+        guard sftpService.isConnected else {
+            sftpService.errorMessage = "Sync failed: not connected to a server. Suggested fix: connect first."
+            return
+        }
+        guard RsyncTransfer.isAvailable else {
+            sftpService.errorMessage = "Sync failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
+            return
+        }
+        guard let rsyncAuth = resolveRsyncAuth() else {
+            sftpService.errorMessage = "Sync failed: no auth credentials available. Suggested fix: reconnect to the server."
+            return
+        }
+
+        let remotePath = sftpService.currentPath
+        let dirName = localDir.lastPathComponent
+        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: true, destinationDirectory: remotePath)
+        transfers.insert(item, at: 0)
+        let itemID = item.id
+        let host = sftpService.connectedHost
+        let username = sftpService.connectedUsername
+
+        let task = Task {
+            let rsync = RsyncTransfer()
+            activeRsyncs[itemID] = rsync
+            let start = Date()
+            logTransferStart(
+                id: itemID,
+                direction: "upload",
+                mode: "rsync-sync",
+                source: localDir.path,
+                destination: remotePath,
+                bytes: 0
+            )
+
+            do {
+                try await rsync.syncUpload(
+                    localPath: localDir.path,
+                    remotePath: remotePath,
+                    host: host,
+                    username: username,
+                    auth: rsyncAuth
+                ) { [weak self] progress in
+                    Task { @MainActor in
+                        self?.updateProgress(id: itemID, progress: progress)
+                    }
+                }
+                updateStatus(id: itemID, status: .completed)
+                logTransferCompleted(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "rsync-sync",
+                    bytes: 0,
+                    startedAt: start
+                )
+            } catch is CancellationError {
+                updateStatus(id: itemID, status: .cancelled)
+                logTransferCancelled(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "rsync-sync",
+                    bytes: 0,
+                    startedAt: start
+                )
+            } catch {
+                updateStatus(id: itemID, status: .failed)
+                sftpService.errorMessage = transferFailureMessage(
+                    operation: "directory sync upload",
+                    source: localDir.path,
+                    destination: remotePath,
+                    error: error,
+                    suggestedFix: "verify connection and try again"
+                )
+                logTransferFailed(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "rsync-sync",
+                    bytes: 0,
+                    startedAt: start,
+                    error: error
+                )
+            }
+            cleanupTask(id: itemID)
+        }
+        activeTasks[itemID] = task
+    }
+
     // MARK: - Rsync Helpers
 
     private func resolveRsyncAuth() -> RsyncAuth? {
