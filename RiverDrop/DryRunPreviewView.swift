@@ -31,16 +31,25 @@ struct DryRunPreviewView: View {
             PaneHeader("Sync Preview", icon: "arrow.triangle.2.circlepath")
 
             HStack(spacing: RD.Spacing.sm) {
-                StatusBadge(text: "\(result.added.count) added", color: .green)
-                StatusBadge(text: "\(result.modified.count) modified", color: .orange)
-                StatusBadge(text: "\(result.deleted.count) deleted", color: .red)
+                if result.added.count > 0 {
+                    StatusBadge(text: "+\(result.added.count) added", color: .green)
+                }
+                if result.modified.count > 0 {
+                    StatusBadge(text: "\(result.modified.count) modified", color: .orange)
+                }
+                if result.deleted.count > 0 {
+                    StatusBadge(text: "-\(result.deleted.count) deleted", color: .red)
+                }
 
                 Spacer()
 
                 if result.totalBytes > 0 {
                     Text(ByteCountFormatter.string(fromByteCount: result.totalBytes, countStyle: .file))
-                        .font(.caption)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.primary.opacity(0.04), in: Capsule())
                 }
             }
             .padding(.horizontal, RD.Spacing.md)
@@ -145,7 +154,7 @@ struct DryRunPreviewView: View {
             Button("Cancel") {
                 onCancel()
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(RDButtonStyle(isProminent: false))
             .keyboardShortcut(.cancelAction)
 
             Spacer()
@@ -153,7 +162,11 @@ struct DryRunPreviewView: View {
             Button {
                 onConfirm()
             } label: {
-                Text("Sync \(result.totalFiles) files")
+                HStack(spacing: RD.Spacing.xs) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 11))
+                    Text("Sync \(result.totalFiles) files")
+                }
             }
             .buttonStyle(RDButtonStyle(isProminent: true))
             .keyboardShortcut(.defaultAction)

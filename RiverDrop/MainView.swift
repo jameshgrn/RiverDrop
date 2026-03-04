@@ -426,7 +426,7 @@ struct MainView: View {
             HStack(spacing: RD.Spacing.xs) {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
-                        .font(.caption)
+                        .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                     TextField("Search file contents...", text: $remoteContentSearchQuery)
                         .textFieldStyle(.plain)
@@ -440,9 +440,13 @@ struct MainView: View {
                             )
                         }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, RD.Spacing.sm)
                 .padding(.vertical, 5)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+                .overlay(
+                    RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                )
 
                 if remoteRipgrepSearch.isSearching {
                     Button {
@@ -452,6 +456,7 @@ struct MainView: View {
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(.borderless)
+                    .help("Cancel search")
                 } else {
                     Button {
                         guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
@@ -461,10 +466,11 @@ struct MainView: View {
                             via: sftpService
                         )
                     } label: {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .foregroundStyle(Color.riverPrimary)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10))
                     }
                     .buttonStyle(.borderless)
+                    .help("Run search")
                 }
             }
 
@@ -485,25 +491,31 @@ struct MainView: View {
             }
 
             if !remoteRipgrepSearch.results.isEmpty {
+                StatusBadge(
+                    text: "\(remoteRipgrepSearch.results.count) match\(remoteRipgrepSearch.results.count == 1 ? "" : "es")",
+                    color: .riverPrimary
+                )
+
                 List(remoteRipgrepSearch.results) { result in
                     Button {
                         Task { await navigateRemoteTo(result.directoryPath) }
                     } label: {
                         HStack(spacing: RD.Spacing.sm) {
-                            FileIconView(filename: result.filePath, isDirectory: false, size: 13)
+                            FileIconView(filename: result.filePath, isDirectory: false, size: 12)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(result.filePath)
-                                    .font(.system(size: 11))
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                HStack(spacing: 4) {
+                                HStack(spacing: RD.Spacing.xs) {
                                     Text("L\(result.lineNumber)")
-                                        .font(.system(size: 10, design: .monospaced))
+                                        .font(.caption2)
                                         .foregroundStyle(.tertiary)
+                                        .monospacedDigit()
                                     Text(result.content)
-                                        .font(.system(size: 11))
+                                        .font(.caption)
                                         .lineLimit(1)
                                 }
                             }
@@ -515,7 +527,8 @@ struct MainView: View {
                 .frame(maxHeight: 200)
             }
         }
-        .padding(RD.Spacing.sm)
+        .padding(.horizontal, RD.Spacing.md)
+        .padding(.vertical, RD.Spacing.sm)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
     }
 
@@ -615,15 +628,17 @@ struct MainView: View {
             }
         }
         .padding(.vertical, 1)
-        .padding(.horizontal, isSelected ? RD.Spacing.xs : 0)
+        .padding(.horizontal, isSelected || isHovered ? RD.Spacing.xs : 0)
         .background(
             isSelected
                 ? Color.accentColor.opacity(0.12)
                 : isHovered
-                    ? Color.primary.opacity(0.03)
+                    ? Color.accentColor.opacity(0.04)
                     : Color.clear,
             in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
         )
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+        .animation(.easeOut(duration: 0.15), value: isSelected)
         .onHover { hovering in
             hoveredFileID = hovering ? file.id : nil
         }
@@ -663,10 +678,9 @@ struct MainView: View {
 
     private var transferLog: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack(spacing: RD.Spacing.sm) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         isTransferLogExpanded.toggle()
                     }
                 } label: {
@@ -674,7 +688,7 @@ struct MainView: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isTransferLogExpanded ? 90 : 0))
-                        .animation(.easeInOut(duration: 0.2), value: isTransferLogExpanded)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isTransferLogExpanded)
                         .frame(width: 14)
                 }
                 .buttonStyle(.borderless)
@@ -746,14 +760,21 @@ struct MainView: View {
             Spacer()
 
             if item.status == .inProgress {
-                // Pill-shaped progress
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.primary.opacity(0.06))
-                        .frame(width: 80, height: 6)
+                        .frame(width: 80, height: 5)
                     Capsule()
-                        .fill(Color.riverAccent.gradient)
-                        .frame(width: max(4, 80 * item.progress), height: 6)
+                        .fill(
+                            LinearGradient(
+                                colors: [.riverPrimary, .riverAccent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(4, 80 * item.progress), height: 5)
+                        .shadow(color: .riverAccent.opacity(0.3), radius: 3)
+                        .animation(.easeOut(duration: 0.3), value: item.progress)
                 }
                 .frame(width: 80)
 

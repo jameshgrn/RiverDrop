@@ -6,6 +6,7 @@ extension Color {
     static let riverPrimary = Color(red: 0.15, green: 0.45, blue: 0.85)
     static let riverAccent = Color(red: 0.02, green: 0.71, blue: 0.83)
     static let riverGlow = Color(red: 0.30, green: 0.58, blue: 0.98)
+    static let riverSurface = Color(red: 0.14, green: 0.42, blue: 0.78, opacity: 0.03)
 }
 
 // MARK: - Namespace
@@ -22,6 +23,18 @@ enum RD {
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
         static let xxl: CGFloat = 32
+    }
+
+    enum Shadow {
+        static func card(_ scheme: ColorScheme) -> some View {
+            Color.black.opacity(scheme == .dark ? 0.35 : 0.08)
+        }
+
+        static let cardRadius: CGFloat = 12
+        static let cardY: CGFloat = 4
+
+        static let subtleRadius: CGFloat = 6
+        static let subtleY: CGFloat = 2
     }
 }
 
@@ -71,6 +84,7 @@ struct FileIconView: View {
 
 struct CardModifier: ViewModifier {
     var padding: CGFloat = RD.Spacing.lg
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
@@ -80,12 +94,41 @@ struct CardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: RD.cornerRadius)
                     .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
             )
+            .shadow(
+                color: .black.opacity(colorScheme == .dark ? 0.3 : 0.06),
+                radius: RD.Shadow.cardRadius,
+                y: RD.Shadow.cardY
+            )
     }
 }
 
 extension View {
     func cardStyle(padding: CGFloat = RD.Spacing.lg) -> some View {
         modifier(CardModifier(padding: padding))
+    }
+}
+
+// MARK: - Glow Effect
+
+struct GlowModifier: ViewModifier {
+    let color: Color
+    let radius: CGFloat
+    @State private var isGlowing = false
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: color.opacity(isGlowing ? 0.5 : 0.15), radius: radius)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                    isGlowing = true
+                }
+            }
+    }
+}
+
+extension View {
+    func glow(_ color: Color = .riverGlow, radius: CGFloat = 12) -> some View {
+        modifier(GlowModifier(color: color, radius: radius))
     }
 }
 
@@ -113,9 +156,14 @@ struct RDButtonStyle: ButtonStyle {
                         .fill(.quaternary)
                 }
             }
-            .opacity(configuration.isPressed ? 0.85 : 1.0)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .shadow(
+                color: isProminent ? Color.riverPrimary.opacity(configuration.isPressed ? 0.1 : 0.25) : .clear,
+                radius: configuration.isPressed ? 4 : 8,
+                y: configuration.isPressed ? 1 : 3
+            )
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -175,22 +223,27 @@ struct BreadcrumbView<ID: Hashable>: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
                 ForEach(Array(components.enumerated()), id: \.element.id) { index, component in
+                    let isCurrent = index == components.count - 1
                     Button {
                         onNavigate(component.id)
                     } label: {
                         Text(component.name)
-                            .font(.system(size: 12, weight: index == components.count - 1 ? .semibold : .regular))
-                            .foregroundStyle(index == components.count - 1 ? .primary : .secondary)
+                            .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
+                            .foregroundStyle(isCurrent ? Color.riverPrimary : .secondary)
                     }
                     .buttonStyle(.plain)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(Color.primary.opacity(0.001))
-                    .cornerRadius(4)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        isCurrent
+                            ? Color.riverPrimary.opacity(0.08)
+                            : Color.primary.opacity(0.001),
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
 
                     if index < components.count - 1 {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.quaternary)
                     }
                 }
@@ -216,21 +269,29 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: RD.Spacing.md) {
+        VStack(spacing: RD.Spacing.lg) {
             Image(systemName: icon)
-                .font(.system(size: 36))
-                .foregroundStyle(.quaternary)
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.secondary.opacity(0.3), Color.secondary.opacity(0.15)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
 
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+            VStack(spacing: RD.Spacing.xs) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
 
-            if let subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 200)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 200)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -252,6 +313,16 @@ struct PaneHeader: View {
 
     var body: some View {
         HStack(spacing: RD.Spacing.sm) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(
+                    LinearGradient(
+                        colors: [.riverPrimary, .riverAccent],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 3, height: 14)
+
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.riverPrimary)

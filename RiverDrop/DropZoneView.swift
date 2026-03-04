@@ -63,22 +63,24 @@ struct DropZoneView: View {
 
     // MARK: - Empty State
 
+    @State private var breathe = false
+
     private var emptyDropZone: some View {
         HStack(spacing: RD.Spacing.sm) {
             Image(systemName: direction.emptyIcon)
                 .font(.system(size: 13))
-                .foregroundStyle(isTargeted ? direction.color : Color.secondary.opacity(0.4))
+                .foregroundStyle(isTargeted ? direction.color : Color.secondary.opacity(breathe ? 0.5 : 0.3))
 
             Text("Drop files to stage for \(direction.label.lowercased())")
                 .font(.system(size: 11))
-                .foregroundStyle(isTargeted ? direction.color : Color.secondary.opacity(0.4))
+                .foregroundStyle(isTargeted ? direction.color : Color.secondary.opacity(breathe ? 0.5 : 0.3))
         }
         .frame(maxWidth: .infinity)
         .frame(height: 36)
         .background(
             RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
                 .strokeBorder(
-                    isTargeted ? direction.color.opacity(0.6) : Color.primary.opacity(0.06),
+                    isTargeted ? direction.color.opacity(0.6) : Color.primary.opacity(breathe ? 0.1 : 0.05),
                     style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
                 )
                 .background(
@@ -91,6 +93,11 @@ struct DropZoneView: View {
         .padding(.horizontal, RD.Spacing.sm)
         .padding(.vertical, RD.Spacing.sm)
         .animation(.easeInOut(duration: 0.2), value: isTargeted)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                breathe = true
+            }
+        }
     }
 
     // MARK: - Staged Files
@@ -172,7 +179,7 @@ struct DropZoneView: View {
                 .foregroundStyle(.tertiary)
 
             Button {
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                     stagedItems.removeAll { $0.id == item.id }
                 }
             } label: {
@@ -186,9 +193,9 @@ struct DropZoneView: View {
         }
         .padding(.leading, 6)
         .padding(.trailing, 4)
-        .padding(.vertical, 3)
-        .background(Color.primary.opacity(0.04), in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+        .padding(.vertical, 4)
+        .background(direction.color.opacity(0.05), in: Capsule())
+        .overlay(Capsule().strokeBorder(direction.color.opacity(0.12), lineWidth: 0.5))
     }
 
     private var totalSizeText: String {

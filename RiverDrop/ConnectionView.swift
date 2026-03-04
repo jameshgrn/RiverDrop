@@ -64,23 +64,38 @@ struct ConnectionView: View {
     // MARK: - Background
 
     private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [
-                Color.riverPrimary.opacity(0.08),
-                Color.riverPrimary.opacity(0.02),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.riverPrimary.opacity(0.06),
+                    Color.riverAccent.opacity(0.02),
+                    Color.clear,
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RadialGradient(
+                colors: [
+                    Color.riverGlow.opacity(0.06),
+                    Color.clear,
+                ],
+                center: .center,
+                startRadius: 50,
+                endRadius: 350
+            )
+        }
         .ignoresSafeArea()
     }
 
     // MARK: - Hero
 
+    @State private var heroGlow = false
+
     private var heroSection: some View {
         VStack(spacing: RD.Spacing.sm) {
             Image(systemName: "drop.fill")
-                .font(.system(size: 40))
+                .font(.system(size: 42, weight: .medium))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [.riverPrimary, .riverAccent],
@@ -88,9 +103,16 @@ struct ConnectionView: View {
                         endPoint: .bottomTrailing
                     )
                 )
+                .shadow(color: .riverGlow.opacity(heroGlow ? 0.5 : 0.15), radius: heroGlow ? 16 : 8)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                        heroGlow = true
+                    }
+                }
 
             Text("RiverDrop")
                 .font(.system(size: 26, weight: .bold, design: .rounded))
+                .tracking(0.3)
 
             Text("Secure File Transfer")
                 .font(.subheadline)
@@ -128,11 +150,13 @@ struct ConnectionView: View {
 
     // MARK: - Auth Mode Picker
 
+    @Namespace private var authPickerNS
+
     private var authModePicker: some View {
         HStack(spacing: 0) {
             ForEach(AuthMode.allCases, id: \.self) { mode in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         authMode = mode
                     }
                 } label: {
@@ -148,7 +172,15 @@ struct ConnectionView: View {
                     .background {
                         if authMode == mode {
                             Capsule()
-                                .fill(Color.riverPrimary)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.riverPrimary, .riverGlow],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .matchedGeometryEffect(id: "authPill", in: authPickerNS)
+                                .shadow(color: .riverPrimary.opacity(0.3), radius: 6, y: 2)
                         }
                     }
                 }
@@ -218,6 +250,13 @@ struct ConnectionView: View {
         .padding(RD.Spacing.md)
         .background(Color.primary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+        .overlay(
+            RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                .strokeBorder(
+                    !text.wrappedValue.isEmpty ? Color.riverPrimary.opacity(0.2) : Color.primary.opacity(0.06),
+                    lineWidth: 0.5
+                )
+        )
     }
 
     private func secureInputField(icon: String, placeholder: String, text: Binding<String>) -> some View {
@@ -231,6 +270,13 @@ struct ConnectionView: View {
         .padding(RD.Spacing.md)
         .background(Color.primary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+        .overlay(
+            RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                .strokeBorder(
+                    !text.wrappedValue.isEmpty ? Color.riverPrimary.opacity(0.2) : Color.primary.opacity(0.06),
+                    lineWidth: 0.5
+                )
+        )
     }
 
     // MARK: - Error Card
@@ -277,6 +323,7 @@ struct ConnectionView: View {
         .disabled(!canConnect)
         .opacity(canConnect ? 1 : 0.4)
         .keyboardShortcut(.defaultAction)
+        .padding(.top, RD.Spacing.xs)
     }
 
     // MARK: - Actions

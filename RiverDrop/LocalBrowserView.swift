@@ -494,10 +494,17 @@ struct LocalBrowserView: View {
         return HStack(spacing: 0) {
             if isNew {
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.green)
+                    .fill(
+                        LinearGradient(
+                            colors: [.green, .green.opacity(0.6)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .frame(width: 3)
                     .padding(.vertical, 2)
                     .padding(.trailing, RD.Spacing.sm)
+                    .shadow(color: .green.opacity(0.3), radius: 3)
             }
 
             HStack(spacing: RD.Spacing.sm) {
@@ -532,7 +539,7 @@ struct LocalBrowserView: View {
             isSelected
                 ? Color.accentColor.opacity(0.12)
                 : isHighlighted
-                    ? Color.accentColor.opacity(0.08)
+                    ? Color.riverPrimary.opacity(0.06)
                     : nil
         )
         .contentShape(Rectangle())

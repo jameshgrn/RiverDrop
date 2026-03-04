@@ -47,6 +47,8 @@ struct PaywallView: View {
 
     // MARK: - Hero
 
+    @State private var heroFloat = false
+
     private var hero: some View {
         VStack(spacing: RD.Spacing.sm) {
             Image(systemName: "drop.fill")
@@ -58,10 +60,15 @@ struct PaywallView: View {
                         endPoint: .bottomTrailing
                     )
                 )
+                .shadow(color: .riverGlow.opacity(heroFloat ? 0.4 : 0.15), radius: heroFloat ? 18 : 10)
+                .offset(y: heroFloat ? -3 : 3)
+                .animation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true), value: heroFloat)
                 .padding(.bottom, RD.Spacing.xs)
+                .onAppear { heroFloat = true }
 
             Text("RiverDrop Pro")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
+                .tracking(0.3)
 
             Text("Unlock the full power of RiverDrop")
                 .font(.subheadline)
@@ -84,10 +91,18 @@ struct PaywallView: View {
             Image(systemName: feature.icon)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(feature.tint, in: Circle())
+                .frame(width: 34, height: 34)
+                .background(
+                    LinearGradient(
+                        colors: [feature.tint, feature.tint.opacity(0.7)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 9)
+                )
+                .shadow(color: feature.tint.opacity(0.25), radius: 6, y: 2)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(feature.title)
                     .fontWeight(.semibold)
                     .font(.callout)
