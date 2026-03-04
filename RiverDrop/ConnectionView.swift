@@ -379,7 +379,7 @@ struct ConnectionView: View {
 
         if authMode == .sshKey {
             let savedKeyPath = UserDefaults.standard.string(forKey: DefaultsKey.lastSSHKeyPath) ?? ""
-            if !savedKeyPath.isEmpty, FileManager.default.isReadableFile(atPath: savedKeyPath) {
+            if !savedKeyPath.isEmpty, discoveredKeys.contains(where: { $0.path == savedKeyPath }) {
                 sshKeyPath = savedKeyPath
             }
         }
@@ -406,6 +406,16 @@ struct ConnectionView: View {
         panel.treatsFilePackagesAsDirectories = true
 
         if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try SSHKeyManager.saveBookmark(for: url)
+            } catch {
+                sftpService.errorMessage = "Failed to save SSH key bookmark: \(error.localizedDescription)"
+                return
+            }
+            let newKey = SSHKeyInfo(path: url.path, filename: url.lastPathComponent)
+            if !discoveredKeys.contains(where: { $0.path == newKey.path }) {
+                discoveredKeys.append(newKey)
+            }
             sshKeyPath = url.path
         }
     }
