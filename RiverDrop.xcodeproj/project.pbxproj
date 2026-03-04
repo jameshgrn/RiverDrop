@@ -19,12 +19,15 @@
 		B6C7D8E9F0A12345678901BC /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */; };
 		C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */; };
 		D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */; };
+		F5A6B7C8D9E01142637A8B9C /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */; };
 		E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */; };
+		F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */; };
 		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFileItem.swift; sourceTree = "<group>"; };
+		C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
 		12B074F1E942FFDA1B37584C /* SFTPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFTPService.swift; sourceTree = "<group>"; };
 		D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
 		E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrowserView.swift; sourceTree = "<group>"; };
@@ -36,6 +39,7 @@
 		C7584E43BAC720FCB206A8B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RipgrepSearch.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
+		F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeyManager.swift; sourceTree = "<group>"; };
 		F92F4E94228FEDA36172E00B /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
@@ -72,12 +76,14 @@
 				C7584E43BAC720FCB206A8B4 /* MainView.swift */,
 				2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */,
 				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
+				C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */,
 				A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */,
 				178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */,
 				475DC44F97CE166D9CB71385 /* RiverDropApp.swift */,
 				3C4D5E6F70819204B5C6E0F1 /* RiverDrop.storekit */,
 				B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */,
 				12B074F1E942FFDA1B37584C /* SFTPService.swift */,
+				F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */,
 				F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */,
 				19E8753DBA408E9165BECC22 /* TransferManager.swift */,
 			);
@@ -162,10 +168,12 @@
 				5D738D461AD957016FF547F5 /* MainView.swift in Sources */,
 				B6C7D8E9F0A12345678901BC /* PaywallView.swift in Sources */,
 				AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */,
+				F5A6B7C8D9E01142637A8B9C /* RemoteRipgrepSearch.swift in Sources */,
 				D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */,
 				98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */,
 				E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */,
 				892BA864188D054CBA8A031C /* SFTPService.swift in Sources */,
+				F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */,
 				A5B6C7D8E9F01234567890AB /* StoreManager.swift in Sources */,
 				59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */,
 			);
