@@ -102,7 +102,7 @@ final class RsyncTransfer: @unchecked Sendable {
         let knownHostsPath = try createKnownHostsFile(for: host)
         tempFiles.append(knownHostsPath)
 
-        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)"
+        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(shellQuote(knownHostsPath))"
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -115,7 +115,7 @@ final class RsyncTransfer: @unchecked Sendable {
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = ":0"
         case let .sshKey(keyPath, passphrase):
-            sshCommand += " -i \(keyPath) -o IdentitiesOnly=yes"
+            sshCommand += " -i \(shellQuote(keyPath)) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -207,7 +207,7 @@ final class RsyncTransfer: @unchecked Sendable {
         let knownHostsPath = try createKnownHostsFile(for: host)
         tempFiles.append(knownHostsPath)
 
-        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)"
+        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(shellQuote(knownHostsPath))"
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -220,7 +220,7 @@ final class RsyncTransfer: @unchecked Sendable {
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = ":0"
         case let .sshKey(keyPath, passphrase):
-            sshCommand += " -i \(keyPath) -o IdentitiesOnly=yes"
+            sshCommand += " -i \(shellQuote(keyPath)) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -337,7 +337,7 @@ final class RsyncTransfer: @unchecked Sendable {
         let knownHostsPath = try createKnownHostsFile(for: host)
         tempFiles.append(knownHostsPath)
 
-        var sshCommand = "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)"
+        var sshCommand = "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(shellQuote(knownHostsPath))"
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -350,7 +350,7 @@ final class RsyncTransfer: @unchecked Sendable {
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = ":0"
         case let .sshKey(keyPath, passphrase):
-            sshCommand += " -i \(keyPath) -o IdentitiesOnly=yes"
+            sshCommand += " -i \(shellQuote(keyPath)) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -462,6 +462,10 @@ final class RsyncTransfer: @unchecked Sendable {
 
     private func loadKnownHostKey(for host: String) -> String? {
         HostKeyKeychainHelper.load(for: host)
+    }
+
+    private func shellQuote(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
 
