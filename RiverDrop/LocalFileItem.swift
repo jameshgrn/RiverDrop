@@ -1,12 +1,13 @@
 import Foundation
 
 struct LocalFileItem: Identifiable, Hashable, Sendable {
-    let id = UUID()
     let filename: String
     let isDirectory: Bool
     let size: UInt64
     let modificationDate: Date?
     let url: URL
+
+    var id: URL { url }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(url)

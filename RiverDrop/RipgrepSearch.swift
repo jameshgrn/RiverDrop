@@ -15,8 +15,13 @@ struct RipgrepResult: Identifiable {
     }
 }
 
-private func parseRipgrepLine(_ line: String) -> RipgrepResult? {
-    // Format: filepath:linenum:content
+struct ParsedRipgrepMatch {
+    let filePath: String
+    let lineNumber: Int
+    let content: String
+}
+
+func parseRipgrepFields(_ line: String) -> ParsedRipgrepMatch? {
     guard let firstColon = line.firstIndex(of: ":") else { return nil }
     let filePath = String(line[line.startIndex ..< firstColon])
 
@@ -31,7 +36,11 @@ private func parseRipgrepLine(_ line: String) -> RipgrepResult? {
     let contentStart = line.index(after: secondColon)
     let content = contentStart < line.endIndex ? String(line[contentStart...]) : ""
 
-    return RipgrepResult(filePath: filePath, lineNumber: lineNum, content: content.trimmingCharacters(in: .whitespaces))
+    return ParsedRipgrepMatch(
+        filePath: filePath,
+        lineNumber: lineNum,
+        content: content.trimmingCharacters(in: .whitespaces)
+    )
 }
 
 @MainActor
@@ -161,7 +170,10 @@ final class RipgrepSearch: ObservableObject {
 
             let parsed = output
                 .split(separator: "\n", omittingEmptySubsequences: true)
-                .compactMap { parseRipgrepLine(String($0)) }
+                .compactMap { line -> RipgrepResult? in
+                    guard let m = parseRipgrepFields(String(line)) else { return nil }
+                    return RipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
+                }
 
             await MainActor.run { [weak self] in
                 self?.results = parsed

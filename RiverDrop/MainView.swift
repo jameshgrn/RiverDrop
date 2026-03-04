@@ -53,10 +53,45 @@ func fuzzyMatch(pattern: String, text: String) -> Int {
     return patternIdx == pattern.endIndex ? score : 0
 }
 
+func fuzzyFilter<T>(items: [T], query: String, getText: (T) -> String) -> [T] {
+    let trimmed = query.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return items }
+
+    let scored = items.map { (item: $0, score: fuzzyMatch(pattern: trimmed, text: getText($0))) }
+    let fuzzyHits = scored.filter { $0.score > 0 }
+        .sorted { $0.score > $1.score }
+        .map(\.item)
+    if !fuzzyHits.isEmpty { return fuzzyHits }
+
+    let lower = trimmed.lowercased()
+    return items.filter { getText($0).lowercased().contains(lower) }
+}
+
+func droppedFileURL(from item: NSSecureCoding?) -> URL? {
+    if let url = item as? URL {
+        return url.standardizedFileURL
+    }
+    if let nsURL = item as? NSURL {
+        return (nsURL as URL).standardizedFileURL
+    }
+    if let data = item as? Data {
+        return URL(dataRepresentation: data, relativeTo: nil)?.standardizedFileURL
+    }
+    if let string = item as? String,
+       let url = URL(string: string),
+       url.isFileURL
+    {
+        return url.standardizedFileURL
+    }
+    return nil
+}
+
 struct MainView: View {
     @EnvironmentObject var sftpService: SFTPService
     @EnvironmentObject var transferManager: TransferManager
+    @EnvironmentObject var storeManager: StoreManager
 
+    @State private var showPaywall = false
     @State private var remoteSelectedIDs: Set<RemoteFileItem.ID> = []
     @State private var localCurrentDirectory = URL(fileURLWithPath: "/Users/\(NSUserName())/projects")
     @State private var remoteRoot = RemoteRoot.home
@@ -77,22 +112,7 @@ struct MainView: View {
     }
 
     private var filteredRemoteFiles: [RemoteFileItem] {
-        let query = remoteSearchText.trimmingCharacters(in: .whitespaces)
-        if query.isEmpty { return sftpService.files }
-
-        let scored = sftpService.files
-            .map { (file: $0, score: fuzzyMatch(pattern: query, text: $0.filename)) }
-
-        let fuzzyHits = scored.filter { $0.score > 0 }
-            .sorted { $0.score > $1.score }
-            .map(\.file)
-        if !fuzzyHits.isEmpty { return fuzzyHits }
-
-        // Fallback: substring match so the list never goes blank unexpectedly
-        let lower = query.lowercased()
-        let substringHits = sftpService.files
-            .filter { $0.filename.lowercased().contains(lower) }
-        return substringHits
+        fuzzyFilter(items: sftpService.files, query: remoteSearchText) { $0.filename }
     }
 
     private var displayedRemoteFiles: [RemoteFileItem] {
@@ -207,7 +227,7 @@ struct MainView: View {
                     result: result,
                     onConfirm: {
                         showDryRunPreview = false
-                        // TODO: trigger actual directory sync
+                        transferManager.syncDirectory(localDir: localCurrentDirectory)
                     },
                     onCancel: {
                         showDryRunPreview = false
@@ -217,6 +237,9 @@ struct MainView: View {
         }
         .onChange(of: remoteSearchText) { _, _ in
             remoteDisplayLimit = 200
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 
@@ -258,9 +281,13 @@ struct MainView: View {
                 .frame(maxWidth: 140)
 
             Button {
-                showRemoteContentSearch.toggle()
-                if !showRemoteContentSearch {
-                    remoteRipgrepSearch.cancel()
+                if storeManager.isPro {
+                    showRemoteContentSearch.toggle()
+                    if !showRemoteContentSearch {
+                        remoteRipgrepSearch.cancel()
+                    }
+                } else {
+                    showPaywall = true
                 }
             } label: {
                 Image(systemName: "doc.text.magnifyingglass")
@@ -478,9 +505,12 @@ struct MainView: View {
 
     private func remoteFolderRow(_ file: RemoteFileItem) -> some View {
         Button {
-            Task { await sftpService.navigateTo(file.filename) }
-            remoteSelectedIDs = []
-            remoteSearchText = ""
+            Task {
+                await sftpService.navigateTo(file.filename)
+                remoteSelectedIDs = []
+                remoteSearchText = ""
+                remoteDisplayLimit = 200
+            }
         } label: {
             HStack {
                 Image(systemName: "folder.fill")
@@ -676,25 +706,6 @@ struct MainView: View {
                 }
             }
         }
-    }
-
-    private func droppedFileURL(from item: NSSecureCoding?) -> URL? {
-        if let url = item as? URL {
-            return url.standardizedFileURL
-        }
-        if let nsURL = item as? NSURL {
-            return (nsURL as URL).standardizedFileURL
-        }
-        if let data = item as? Data {
-            return URL(dataRepresentation: data, relativeTo: nil)?.standardizedFileURL
-        }
-        if let string = item as? String,
-           let url = URL(string: string),
-           url.isFileURL
-        {
-            return url.standardizedFileURL
-        }
-        return nil
     }
 
     private func downloadSelectedToLocalDir() {

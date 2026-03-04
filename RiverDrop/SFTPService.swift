@@ -13,6 +13,7 @@ final class SFTPService: ObservableObject {
     @Published var currentPath = ""
     @Published var files: [RemoteFileItem] = []
     @Published var errorMessage: String?
+    private(set) var connectedAuthConfig: SSHAuthConfig?
 
     private let session = SFTPSession()
 
@@ -42,6 +43,7 @@ final class SFTPService: ObservableObject {
 
             connectedUsername = username
             connectedHost = host
+            connectedAuthConfig = auth
             homePath = resolvedHome
             currentPath = resolvedHome
             isConnected = true
@@ -51,6 +53,7 @@ final class SFTPService: ObservableObject {
             isConnected = false
             connectedUsername = ""
             connectedHost = ""
+            connectedAuthConfig = nil
             homePath = ""
             currentPath = ""
             files = []
@@ -78,6 +81,7 @@ final class SFTPService: ObservableObject {
         isConnected = false
         connectedUsername = ""
         connectedHost = ""
+        connectedAuthConfig = nil
         homePath = ""
         files = []
         currentPath = ""
@@ -372,14 +376,12 @@ private actor SFTPSession {
 }
 
 private enum HostKeyStore {
-    private static let defaultsPrefix = "KnownHostKey_"
-
     static func load(for host: String) -> String? {
-        UserDefaults.standard.string(forKey: defaultsPrefix + host.lowercased())
+        HostKeyKeychainHelper.load(for: host)
     }
 
     static func save(_ openSSHKey: String, for host: String) {
-        UserDefaults.standard.set(openSSHKey, forKey: defaultsPrefix + host.lowercased())
+        HostKeyKeychainHelper.save(openSSHKey, for: host)
     }
 }
 

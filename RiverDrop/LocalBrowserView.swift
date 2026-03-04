@@ -36,22 +36,7 @@ struct LocalBrowserView: View {
     ]
 
     private var filteredFiles: [LocalFileItem] {
-        let query = searchText.trimmingCharacters(in: .whitespaces)
-        if query.isEmpty { return files }
-
-        let scored = files
-            .map { (file: $0, score: fuzzyMatch(pattern: query, text: $0.filename)) }
-
-        let fuzzyHits = scored.filter { $0.score > 0 }
-            .sorted { $0.score > $1.score }
-            .map(\.file)
-        if !fuzzyHits.isEmpty { return fuzzyHits }
-
-        // Fallback: substring match so the list never goes blank unexpectedly
-        let lower = query.lowercased()
-        let substringHits = files
-            .filter { $0.filename.lowercased().contains(lower) }
-        return substringHits
+        fuzzyFilter(items: files, query: searchText) { $0.filename }
     }
 
     private var displayedFiles: [LocalFileItem] {
@@ -629,8 +614,6 @@ struct LocalBrowserView: View {
 
     // MARK: - Security-Scoped Bookmarks
 
-    private static let bookmarkDefaultsPrefix = "SandboxBookmark_"
-
     private func saveBookmark(url: URL, key: String) {
         do {
             let data = try url.bookmarkData(
@@ -638,14 +621,14 @@ struct LocalBrowserView: View {
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            UserDefaults.standard.set(data, forKey: Self.bookmarkDefaultsPrefix + key)
+            UserDefaults.standard.set(data, forKey: DefaultsKey.sandboxBookmarkPrefix + key)
         } catch {
             sftpService.errorMessage = "Save bookmark failed for \(url.path): \(error.localizedDescription). Suggested fix: re-select the folder and try again."
         }
     }
 
     private func restoreSavedBookmark(for key: String) -> Bool {
-        guard let data = UserDefaults.standard.data(forKey: Self.bookmarkDefaultsPrefix + key) else {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.sandboxBookmarkPrefix + key) else {
             return false
         }
 
@@ -824,25 +807,6 @@ struct LocalBrowserView: View {
                 }
             }
         }
-    }
-
-    private func droppedFileURL(from item: NSSecureCoding?) -> URL? {
-        if let url = item as? URL {
-            return url.standardizedFileURL
-        }
-        if let nsURL = item as? NSURL {
-            return (nsURL as URL).standardizedFileURL
-        }
-        if let data = item as? Data {
-            return URL(dataRepresentation: data, relativeTo: nil)?.standardizedFileURL
-        }
-        if let string = item as? String,
-           let url = URL(string: string),
-           url.isFileURL
-        {
-            return url.standardizedFileURL
-        }
-        return nil
     }
 
     // MARK: - File Operations

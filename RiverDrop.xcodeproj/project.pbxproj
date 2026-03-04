@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A5B6C7D8E9F0123456789CD /* DefaultsKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */; };
 		502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E55F09D483C9B50F4EB55B /* ConnectionView.swift */; };
 		59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E8753DBA408E9165BECC22 /* TransferManager.swift */; };
 		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
@@ -27,6 +28,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsKey.swift; sourceTree = "<group>"; };
 		0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFileItem.swift; sourceTree = "<group>"; };
 		C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
 		12B074F1E942FFDA1B37584C /* SFTPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFTPService.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				43E55F09D483C9B50F4EB55B /* ConnectionView.swift */,
+				7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */,
 				F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */,
 				F92F4E94228FEDA36172E00B /* KeychainHelper.swift */,
 				E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */,
@@ -165,6 +168,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */,
+				4A5B6C7D8E9F0123456789CD /* DefaultsKey.swift in Sources */,
 				D4E5F6A7B8C90D23456789AB /* DryRunPreviewView.swift in Sources */,
 				6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */,
 				C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */,

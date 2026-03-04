@@ -12,27 +12,6 @@ struct RemoteRipgrepResult: Identifiable {
     }
 }
 
-private func parseRemoteRipgrepLine(_ line: String) -> RemoteRipgrepResult? {
-    guard let firstColon = line.firstIndex(of: ":") else { return nil }
-    let filePath = String(line[line.startIndex..<firstColon])
-
-    let afterFirst = line.index(after: firstColon)
-    guard afterFirst < line.endIndex,
-          let secondColon = line[afterFirst...].firstIndex(of: ":")
-    else { return nil }
-
-    let lineNumStr = String(line[afterFirst..<secondColon])
-    guard let lineNum = Int(lineNumStr) else { return nil }
-
-    let contentStart = line.index(after: secondColon)
-    let content = contentStart < line.endIndex ? String(line[contentStart...]) : ""
-
-    return RemoteRipgrepResult(
-        filePath: filePath,
-        lineNumber: lineNum,
-        content: content.trimmingCharacters(in: .whitespaces)
-    )
-}
 
 @MainActor
 final class RemoteRipgrepSearch: ObservableObject {
@@ -71,7 +50,10 @@ final class RemoteRipgrepSearch: ObservableObject {
 
             results = output
                 .split(separator: "\n", omittingEmptySubsequences: true)
-                .compactMap { parseRemoteRipgrepLine(String($0)) }
+                .compactMap { line -> RemoteRipgrepResult? in
+                    guard let m = parseRipgrepFields(String(line)) else { return nil }
+                    return RemoteRipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
+                }
         }
     }
 

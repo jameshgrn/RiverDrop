@@ -119,9 +119,9 @@ struct ConnectionView: View {
         isConnecting = true
         sftpService.errorMessage = nil
 
-        UserDefaults.standard.set(username, forKey: "lastUsername")
-        UserDefaults.standard.set(host, forKey: "lastHost")
-        UserDefaults.standard.set(authMode.rawValue, forKey: "lastAuthMode")
+        UserDefaults.standard.set(username, forKey: DefaultsKey.lastUsername)
+        UserDefaults.standard.set(host, forKey: DefaultsKey.lastHost)
+        UserDefaults.standard.set(authMode.rawValue, forKey: DefaultsKey.lastAuthMode)
 
         if authMode == .password {
             do {
@@ -132,7 +132,7 @@ struct ConnectionView: View {
         }
 
         if authMode == .sshKey {
-            UserDefaults.standard.set(sshKeyPath, forKey: "lastSSHKeyPath")
+            UserDefaults.standard.set(sshKeyPath, forKey: DefaultsKey.lastSSHKeyPath)
         }
 
         Task {
@@ -152,20 +152,20 @@ struct ConnectionView: View {
     }
 
     private func restoreSavedState() {
-        let savedHost = UserDefaults.standard.string(forKey: "lastHost") ?? ""
-        let savedUser = UserDefaults.standard.string(forKey: "lastUsername") ?? ""
+        let savedHost = UserDefaults.standard.string(forKey: DefaultsKey.lastHost) ?? ""
+        let savedUser = UserDefaults.standard.string(forKey: DefaultsKey.lastUsername) ?? ""
 
         if host.isEmpty { host = savedHost }
         if username.isEmpty { username = savedUser }
 
-        if let savedMode = UserDefaults.standard.string(forKey: "lastAuthMode"),
+        if let savedMode = UserDefaults.standard.string(forKey: DefaultsKey.lastAuthMode),
            let mode = AuthMode(rawValue: savedMode)
         {
             authMode = mode
         }
 
         if authMode == .sshKey {
-            let savedKeyPath = UserDefaults.standard.string(forKey: "lastSSHKeyPath") ?? ""
+            let savedKeyPath = UserDefaults.standard.string(forKey: DefaultsKey.lastSSHKeyPath) ?? ""
             if !savedKeyPath.isEmpty, FileManager.default.isReadableFile(atPath: savedKeyPath) {
                 sshKeyPath = savedKeyPath
             }

@@ -1,5 +1,10 @@
 import Foundation
 
+enum RsyncAuth: Sendable {
+    case password(String)
+    case sshKey(path: String, passphrase: String?)
+}
+
 final class RsyncTransfer: @unchecked Sendable {
     private var process: Process?
     private let lock = NSLock()
@@ -29,7 +34,7 @@ final class RsyncTransfer: @unchecked Sendable {
         remotePath: String,
         host: String,
         username: String,
-        password: String,
+        auth: RsyncAuth,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         let destination = "\(username)@\(host):\(remotePath)"
@@ -37,7 +42,7 @@ final class RsyncTransfer: @unchecked Sendable {
             source: localPath,
             destination: destination,
             host: host,
-            password: password,
+            auth: auth,
             progressHandler: progressHandler
         )
     }
@@ -47,7 +52,7 @@ final class RsyncTransfer: @unchecked Sendable {
         localPath: String,
         host: String,
         username: String,
-        password: String,
+        auth: RsyncAuth,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         let source = "\(username)@\(host):\(remotePath)"
@@ -55,7 +60,27 @@ final class RsyncTransfer: @unchecked Sendable {
             source: source,
             destination: localPath,
             host: host,
-            password: password,
+            auth: auth,
+            progressHandler: progressHandler
+        )
+    }
+
+    func syncDownload(
+        remotePath: String,
+        localPath: String,
+        host: String,
+        username: String,
+        auth: RsyncAuth,
+        progressHandler: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        let sourcePath = remotePath.hasSuffix("/") ? remotePath : remotePath + "/"
+        let source = "\(username)@\(host):\(sourcePath)"
+        let dest = localPath.hasSuffix("/") ? localPath : localPath + "/"
+        try await runSync(
+            source: source,
+            destination: dest,
+            host: host,
+            auth: auth,
             progressHandler: progressHandler
         )
     }
@@ -64,17 +89,41 @@ final class RsyncTransfer: @unchecked Sendable {
         source: String,
         destination: String,
         host: String,
-        password: String,
+        auth: RsyncAuth,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         guard let rsyncPath = Self.rsyncPath else {
             throw RsyncError.notInstalled
         }
 
-        let askpassScript = try createAskpassScript(password: password)
-        defer { try? FileManager.default.removeItem(atPath: askpassScript) }
+        var tempFiles: [String] = []
+        defer { for path in tempFiles { try? FileManager.default.removeItem(atPath: path) } }
+
         let knownHostsPath = try createKnownHostsFile(for: host)
-        defer { try? FileManager.default.removeItem(atPath: knownHostsPath) }
+        tempFiles.append(knownHostsPath)
+
+        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)"
+        var environment: [String: String] = [
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
+        ]
+
+        switch auth {
+        case let .password(password):
+            let askpassScript = try createAskpassScript(password: password)
+            tempFiles.append(askpassScript)
+            environment["SSH_ASKPASS"] = askpassScript
+            environment["SSH_ASKPASS_REQUIRE"] = "force"
+            environment["DISPLAY"] = ":0"
+        case let .sshKey(keyPath, passphrase):
+            sshCommand += " -i \(keyPath) -o IdentitiesOnly=yes"
+            if let passphrase {
+                let askpassScript = try createAskpassScript(password: passphrase)
+                tempFiles.append(askpassScript)
+                environment["SSH_ASKPASS"] = askpassScript
+                environment["SSH_ASKPASS_REQUIRE"] = "force"
+                environment["DISPLAY"] = ":0"
+            }
+        }
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: rsyncPath)
@@ -84,16 +133,115 @@ final class RsyncTransfer: @unchecked Sendable {
             "--inplace",
             "--partial",
             "--progress",
-            "-e", "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)",
+            "-e", sshCommand,
             source,
             destination,
         ]
-        proc.environment = [
-            "SSH_ASKPASS": askpassScript,
-            "SSH_ASKPASS_REQUIRE": "force",
-            "DISPLAY": ":0",
+        proc.environment = environment
+        proc.standardInput = FileHandle.nullDevice
+
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = pipe
+
+        try storeProcessIfNotCancelled(proc)
+        try proc.run()
+
+        let fileHandle = pipe.fileHandleForReading
+        let progressRegex = try NSRegularExpression(pattern: #"(\d+)%"#)
+        let resumeGuard = AtomicFlag()
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            fileHandle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    return
+                }
+
+                if let line = String(data: data, encoding: .utf8) {
+                    let range = NSRange(line.startIndex..., in: line)
+                    if let match = progressRegex.matches(in: line, range: range).last,
+                       let percentRange = Range(match.range(at: 1), in: line),
+                       let percent = Double(line[percentRange])
+                    {
+                        progressHandler(min(percent / 100.0, 1.0))
+                    }
+                }
+            }
+
+            proc.terminationHandler = { [weak self] process in
+                fileHandle.readabilityHandler = nil
+                self?.clearProcess()
+
+                guard resumeGuard.setIfUnset() else { return }
+
+                if process.terminationStatus == 0 {
+                    progressHandler(1.0)
+                    continuation.resume()
+                } else if self?.isTransferCancelled() == true || process.terminationReason == .uncaughtSignal {
+                    continuation.resume(throwing: CancellationError())
+                } else {
+                    continuation.resume(
+                        throwing: RsyncError.processFailed(exitCode: process.terminationStatus)
+                    )
+                }
+            }
+        }
+    }
+
+    private func runSync(
+        source: String,
+        destination: String,
+        host: String,
+        auth: RsyncAuth,
+        progressHandler: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        guard let rsyncPath = Self.rsyncPath else {
+            throw RsyncError.notInstalled
+        }
+
+        var tempFiles: [String] = []
+        defer { for path in tempFiles { try? FileManager.default.removeItem(atPath: path) } }
+
+        let knownHostsPath = try createKnownHostsFile(for: host)
+        tempFiles.append(knownHostsPath)
+
+        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)"
+        var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
+
+        switch auth {
+        case let .password(password):
+            let askpassScript = try createAskpassScript(password: password)
+            tempFiles.append(askpassScript)
+            environment["SSH_ASKPASS"] = askpassScript
+            environment["SSH_ASKPASS_REQUIRE"] = "force"
+            environment["DISPLAY"] = ":0"
+        case let .sshKey(keyPath, passphrase):
+            sshCommand += " -i \(keyPath) -o IdentitiesOnly=yes"
+            if let passphrase {
+                let askpassScript = try createAskpassScript(password: passphrase)
+                tempFiles.append(askpassScript)
+                environment["SSH_ASKPASS"] = askpassScript
+                environment["SSH_ASKPASS_REQUIRE"] = "force"
+                environment["DISPLAY"] = ":0"
+            }
+        }
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: rsyncPath)
+        proc.arguments = [
+            "-a",
+            "--delete",
+            "--partial",
+            "--progress",
+            "-e", sshCommand,
+            source,
+            destination,
+        ]
+        proc.environment = environment
         proc.standardInput = FileHandle.nullDevice
 
         let pipe = Pipe()
@@ -153,12 +301,12 @@ final class RsyncTransfer: @unchecked Sendable {
         localPath: String,
         host: String,
         username: String,
-        password: String
+        auth: RsyncAuth
     ) async throws -> DryRunResult {
         let sourcePath = remotePath.hasSuffix("/") ? remotePath : remotePath + "/"
         let source = "\(username)@\(host):\(sourcePath)"
         let dest = localPath.hasSuffix("/") ? localPath : localPath + "/"
-        return try await runDryRun(source: source, destination: dest, host: host, password: password)
+        return try await runDryRun(source: source, destination: dest, host: host, auth: auth)
     }
 
     func dryRunUpload(
@@ -166,27 +314,51 @@ final class RsyncTransfer: @unchecked Sendable {
         remotePath: String,
         host: String,
         username: String,
-        password: String
+        auth: RsyncAuth
     ) async throws -> DryRunResult {
         let sourcePath = localPath.hasSuffix("/") ? localPath : localPath + "/"
         let destination = "\(username)@\(host):\(remotePath)"
-        return try await runDryRun(source: sourcePath, destination: destination, host: host, password: password)
+        return try await runDryRun(source: sourcePath, destination: destination, host: host, auth: auth)
     }
 
     private func runDryRun(
         source: String,
         destination: String,
         host: String,
-        password: String
+        auth: RsyncAuth
     ) async throws -> DryRunResult {
         guard let rsyncPath = Self.rsyncPath else {
             throw RsyncError.notInstalled
         }
 
-        let askpassScript = try createAskpassScript(password: password)
-        defer { try? FileManager.default.removeItem(atPath: askpassScript) }
+        var tempFiles: [String] = []
+        defer { for path in tempFiles { try? FileManager.default.removeItem(atPath: path) } }
+
         let knownHostsPath = try createKnownHostsFile(for: host)
-        defer { try? FileManager.default.removeItem(atPath: knownHostsPath) }
+        tempFiles.append(knownHostsPath)
+
+        var sshCommand = "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)"
+        var environment: [String: String] = [
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
+        ]
+
+        switch auth {
+        case let .password(password):
+            let askpassScript = try createAskpassScript(password: password)
+            tempFiles.append(askpassScript)
+            environment["SSH_ASKPASS"] = askpassScript
+            environment["SSH_ASKPASS_REQUIRE"] = "force"
+            environment["DISPLAY"] = ":0"
+        case let .sshKey(keyPath, passphrase):
+            sshCommand += " -i \(keyPath) -o IdentitiesOnly=yes"
+            if let passphrase {
+                let askpassScript = try createAskpassScript(password: passphrase)
+                tempFiles.append(askpassScript)
+                environment["SSH_ASKPASS"] = askpassScript
+                environment["SSH_ASKPASS_REQUIRE"] = "force"
+                environment["DISPLAY"] = ":0"
+            }
+        }
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: rsyncPath)
@@ -195,16 +367,11 @@ final class RsyncTransfer: @unchecked Sendable {
             "--dry-run",
             "--delete",
             "--out-format=%i %l %n",
-            "-e", "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath)",
+            "-e", sshCommand,
             source,
             destination,
         ]
-        proc.environment = [
-            "SSH_ASKPASS": askpassScript,
-            "SSH_ASKPASS_REQUIRE": "force",
-            "DISPLAY": ":0",
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
-        ]
+        proc.environment = environment
         proc.standardInput = FileHandle.nullDevice
 
         let stdoutPipe = Pipe()
@@ -294,7 +461,7 @@ final class RsyncTransfer: @unchecked Sendable {
     }
 
     private func loadKnownHostKey(for host: String) -> String? {
-        UserDefaults.standard.string(forKey: "KnownHostKey_" + host.lowercased())
+        HostKeyKeychainHelper.load(for: host)
     }
 }
 

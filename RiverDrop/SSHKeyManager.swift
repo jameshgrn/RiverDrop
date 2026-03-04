@@ -19,7 +19,6 @@ enum SSHKeyManager {
     private static let knownKeyFilenames = [
         "id_ed25519",
         "id_rsa",
-        "id_ecdsa",
     ]
 
     static func discoverKeys() -> [SSHKeyInfo] {
