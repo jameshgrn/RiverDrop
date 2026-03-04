@@ -559,11 +559,18 @@ func parseDryRunLine(_ line: String) -> DryRunFileEntry? {
 
     let itemize = String(trimmed.prefix(11))
     let fileType = itemize[itemize.index(after: itemize.startIndex)]
-    if fileType == "d" { return nil } // skip directories
 
     let rest = String(trimmed.dropFirst(11)).trimmingCharacters(in: .whitespaces)
     let parts = rest.split(separator: " ", maxSplits: 1)
-    guard parts.count == 2, let size = Int64(parts[0]) else { return nil }
+    guard parts.count == 2 else { return nil }
+
+    if fileType == "d" {
+        let filename = String(parts[1])
+        let change: DryRunFileEntry.ChangeType = itemize.contains("+++++++++") ? .added : .modified
+        return DryRunFileEntry(path: filename, size: 0, change: change)
+    }
+
+    guard let size = Int64(parts[0]) else { return nil }
     let filename = String(parts[1])
 
     let change: DryRunFileEntry.ChangeType = itemize.contains("+++++++++") ? .added : .modified

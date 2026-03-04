@@ -8,6 +8,8 @@ struct LocalBrowserView: View {
 
     @Binding var localCurrentDirectory: URL
     @Binding var recentlyDownloaded: Set<String>
+    @Binding var showDryRunPreview: Bool
+    @Binding var dryRunIsUpload: Bool
     @State private var files: [LocalFileItem] = []
     @State private var selectedIDs: Set<LocalFileItem.ID> = []
     @State private var isDropTargeted = false
@@ -151,8 +153,10 @@ struct LocalBrowserView: View {
 
                 Menu {
                     ForEach(Self.bookmarks, id: \.path) { bookmark in
-                        Button(bookmark.label) {
-                            navigateToBookmark(path: bookmark.path)
+                        if FileManager.default.fileExists(atPath: bookmark.path) {
+                            Button(bookmark.label) {
+                                navigateToBookmark(path: bookmark.path)
+                            }
                         }
                     }
                     Divider()
@@ -188,6 +192,31 @@ struct LocalBrowserView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+
+                // Dry run — visible because it's a paid feature
+                Button {
+                    if storeManager.isPro {
+                        Task {
+                            dryRunIsUpload = true
+                            await transferManager.runDryRunUpload(localDir: localCurrentDirectory)
+                            if transferManager.dryRunResult != nil {
+                                showDryRunPreview = true
+                            }
+                        }
+                    } else {
+                        showPaywall = true
+                    }
+                } label: {
+                    if transferManager.isRunningDryRun {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "eye")
+                    }
+                }
+                .frame(width: 28, height: 24)
+                .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
+                .help("Preview rsync upload changes")
 
                 // Right: overflow menu + count
                 Menu {

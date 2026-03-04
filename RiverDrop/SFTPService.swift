@@ -31,6 +31,7 @@ final class SFTPService: ObservableObject {
     }
 
     private let session = SFTPSession()
+    private var reconnectTask: Task<Void, Never>?
 
     func connect(host: String, username: String, password: String) async {
         await connect(host: host, username: username, auth: .password(password))
@@ -41,6 +42,9 @@ final class SFTPService: ObservableObject {
     }
 
     private func connect(host: String, username: String, auth: SSHAuthConfig) async {
+        // Run kinit/klog before connection for HPC environments
+        _ = await runKinitKlog()
+
         let knownHostKey = HostKeyStore.load(for: host)
         let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
 
@@ -64,6 +68,7 @@ final class SFTPService: ObservableObject {
             isConnected = true
             errorMessage = nil
             await listDirectory()
+            startReconnectionTimer()
         } catch {
             isConnected = false
             connectedUsername = ""
@@ -82,6 +87,9 @@ final class SFTPService: ObservableObject {
     }
 
     func disconnect() async {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+
         do {
             try await session.disconnect()
         } catch {
@@ -100,6 +108,71 @@ final class SFTPService: ObservableObject {
         homePath = ""
         files = []
         currentPath = ""
+    }
+
+    /// Heartbeat check and auto-reconnect for long-lived windows.
+    func ensureConnected() async {
+        guard isConnected, let auth = connectedAuthConfig else { return }
+
+        do {
+            // Quick heartbeat
+            _ = try await session.resolvePath(atPath: ".")
+        } catch {
+            // Connection lost, attempt reauth/reconnect
+            _ = await runKinitKlog()
+            
+            do {
+                let knownHostKey = HostKeyStore.load(for: connectedHost)
+                let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
+                _ = try await session.connect(
+                    host: connectedHost,
+                    username: connectedUsername,
+                    auth: auth,
+                    hostKeyValidator: .custom(validator)
+                )
+                errorMessage = nil
+            } catch {
+                errorMessage = "Re-authentication failed: \(error.localizedDescription). Suggested fix: check your credentials and network connection."
+                isConnected = false
+            }
+        }
+    }
+
+    private func startReconnectionTimer() {
+        reconnectTask?.cancel()
+        reconnectTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 300 * 1_000_000_000) // 5 minutes
+                await ensureConnected()
+            }
+        }
+    }
+
+    /// Runs kinit and klog locally to refresh credentials for academic/HPC users.
+    private func runKinitKlog() async -> Bool {
+        let kinitPath = "/usr/bin/kinit"
+        let klogPath = "/usr/bin/klog" // or common paths like /usr/local/bin/klog
+
+        let kinitSuccess = await runProcess(path: kinitPath, args: ["-R"]) // Try to renew
+        let klogSuccess = await runProcess(path: klogPath, args: [])
+        
+        return kinitSuccess || klogSuccess
+    }
+
+    private func runProcess(path: String, args: [String]) async -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path) else { return false }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = args
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 
     func listDirectory() async {
@@ -245,7 +318,7 @@ private actor SFTPSession {
             host: host,
             authenticationMethod: authMethod,
             hostKeyValidator: hostKeyValidator,
-            reconnect: .never
+            reconnect: .always
         )
 
         let sftp = try await client.openSFTP()

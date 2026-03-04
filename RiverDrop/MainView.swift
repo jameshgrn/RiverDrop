@@ -145,6 +145,7 @@ struct MainView: View {
     @State private var isRemoteDropTargeted = false
     @State private var remoteSearchText = ""
     @State private var showDryRunPreview = false
+    @State private var dryRunIsUpload = false
     @AppStorage(DefaultsKey.alwaysPreviewBeforeSync) private var alwaysPreviewBeforeSync = false
     @State private var remoteDisplayLimit = 200
     @State private var showRemoteContentSearch = false
@@ -185,7 +186,9 @@ struct MainView: View {
             HSplitView {
                 LocalBrowserView(
                     localCurrentDirectory: $localCurrentDirectory,
-                    recentlyDownloaded: $recentlyDownloaded
+                    recentlyDownloaded: $recentlyDownloaded,
+                    showDryRunPreview: $showDryRunPreview,
+                    dryRunIsUpload: $dryRunIsUpload
                 )
                 .frame(minWidth: 250)
 
@@ -325,7 +328,13 @@ struct MainView: View {
                     onConfirm: {
                         showDryRunPreview = false
                         if storeManager.isPro {
-                            transferManager.syncDirectory(localDir: localCurrentDirectory)
+                            if dryRunIsUpload {
+                                // Sync upload: local -> remote
+                                transferManager.syncUpload(localDir: localCurrentDirectory)
+                            } else {
+                                // Sync download: remote -> local
+                                transferManager.syncDirectory(localDir: localCurrentDirectory)
+                            }
                         } else {
                             showPaywall = true
                         }
@@ -370,7 +379,9 @@ struct MainView: View {
 
                 Picker("", selection: $remoteRoot) {
                     ForEach(RemoteRoot.allCases, id: \.self) { root in
-                        Text(root.rawValue).tag(root)
+                        if root != .notBackedUp || FileManager.default.fileExists(atPath: "/not_backed_up/\(NSUserName())") {
+                            Text(root.rawValue).tag(root)
+                        }
                     }
                 }
                 .pickerStyle(.segmented)
@@ -407,6 +418,7 @@ struct MainView: View {
                 Button {
                     if storeManager.isPro {
                         Task {
+                            dryRunIsUpload = false
                             await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
                             if transferManager.dryRunResult != nil {
                                 showDryRunPreview = true

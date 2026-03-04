@@ -80,20 +80,26 @@ struct RiverDropApp: App {
 
             // Go menu
             CommandMenu("Go") {
-                Button("Projects") {
-                    navigateToBookmark?("/Users/\(NSUserName())/projects")
+                if FileManager.default.fileExists(atPath: "/Users/\(NSUserName())/projects") {
+                    Button("Projects") {
+                        navigateToBookmark?("/Users/\(NSUserName())/projects")
+                    }
+                    .keyboardShortcut("1", modifiers: .command)
                 }
-                .keyboardShortcut("1", modifiers: .command)
 
-                Button("Home") {
-                    navigateToBookmark?("/Users/\(NSUserName())")
+                if FileManager.default.fileExists(atPath: "/Users/\(NSUserName())") {
+                    Button("Home") {
+                        navigateToBookmark?("/Users/\(NSUserName())")
+                    }
+                    .keyboardShortcut("2", modifiers: .command)
                 }
-                .keyboardShortcut("2", modifiers: .command)
 
-                Button("Cluster Scratch") {
-                    navigateToBookmark?("/not_backed_up/\(NSUserName())")
+                if FileManager.default.fileExists(atPath: "/not_backed_up/\(NSUserName())") {
+                    Button("Cluster Scratch") {
+                        navigateToBookmark?("/not_backed_up/\(NSUserName())")
+                    }
+                    .keyboardShortcut("3", modifiers: .command)
                 }
-                .keyboardShortcut("3", modifiers: .command)
 
                 Divider()
 

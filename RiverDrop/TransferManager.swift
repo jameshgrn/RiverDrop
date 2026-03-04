@@ -56,8 +56,6 @@ final class TransferManager: ObservableObject {
 
         activeTasks[id]?.cancel()
         activeTasks[id] = nil
-
-        updateStatus(id: id, status: .cancelled)
     }
 
     // MARK: - Upload
@@ -81,9 +79,12 @@ final class TransferManager: ObservableObject {
             return
         }
 
-        if isDirectory.boolValue {
+        let rsyncAuth = resolveRsyncAuth()
+        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil && storeManager.isPro
+
+        if isDirectory.boolValue && !useRsync {
             recordSkippedTransfer(filename: localURL.lastPathComponent, isUpload: true)
-            sftpService.errorMessage = "Upload skipped for \(localURL.path): directory uploads are not supported. Suggested fix: select files inside the folder or archive the folder first."
+            sftpService.errorMessage = "Upload skipped for \(localURL.path): directory uploads require a Pro subscription and rsync. Suggested fix: upgrade to Pro or archive the folder first."
             return
         }
 
@@ -91,7 +92,7 @@ final class TransferManager: ObservableObject {
         let filename = localURL.lastPathComponent
 
         Task {
-            if sftpService.files.contains(where: { $0.filename == filename && !$0.isDirectory }) {
+            if sftpService.files.contains(where: { $0.filename == filename }) {
                 let resolution = await promptConflict(filename: filename, direction: "upload")
                 switch resolution {
                 case .cancel: return
@@ -116,8 +117,91 @@ final class TransferManager: ObservableObject {
             ? destinationPath + remoteName
             : destinationPath + "/" + remoteName
 
+        let rsyncAuth = resolveRsyncAuth()
+        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil && storeManager.isPro
+
         let task = Task {
-            let transferStart = Date()
+            if useRsync, let rsyncAuth {
+                let rsync = RsyncTransfer()
+                activeRsyncs[itemID] = rsync
+                let rsyncStart = Date()
+                logTransferStart(
+                    id: itemID,
+                    direction: "upload",
+                    mode: "rsync",
+                    source: localURL.path,
+                    destination: remotePath,
+                    bytes: transferSize
+                )
+
+                do {
+                    try await rsync.upload(
+                        localPath: localURL.path,
+                        remotePath: remotePath,
+                        host: sftpService.connectedHost,
+                        username: sftpService.connectedUsername,
+                        auth: rsyncAuth
+                    ) { [weak self] progress in
+                        Task { @MainActor in
+                            self?.updateProgress(id: itemID, progress: progress)
+                        }
+                    }
+                    updateStatus(id: itemID, status: .completed)
+                    logTransferCompleted(
+                        id: itemID,
+                        direction: "upload",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart
+                    )
+                    if sftpService.currentPath == destinationPath {
+                        await sftpService.listDirectory()
+                    }
+                    cleanupTask(id: itemID)
+                    return
+                } catch is CancellationError {
+                    updateStatus(id: itemID, status: .cancelled)
+                    logTransferCancelled(
+                        id: itemID,
+                        direction: "upload",
+                        mode: "rsync",
+                        bytes: transferSize,
+                        startedAt: rsyncStart
+                    )
+                    cleanupTask(id: itemID)
+                    return
+                } catch {
+                    // rsync failed — fall back to SFTP if it's a file
+                    activeRsyncs[itemID] = nil
+                    var isDir = ObjCBool(false)
+                    if FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDir), !isDir.boolValue {
+                        updateProgress(id: itemID, progress: 0)
+                        logTransferFailed(
+                            id: itemID,
+                            direction: "upload",
+                            mode: "rsync",
+                            bytes: transferSize,
+                            startedAt: rsyncStart,
+                            error: error
+                        )
+                        transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
+                    } else {
+                        updateStatus(id: itemID, status: .failed)
+                        sftpService.errorMessage = transferFailureMessage(
+                            operation: "upload",
+                            source: localURL.path,
+                            destination: remotePath,
+                            error: error,
+                            suggestedFix: "check remote write permissions and available disk space"
+                        )
+                        cleanupTask(id: itemID)
+                        return
+                    }
+                }
+            }
+
+            // SFTP path
+            let sftpStart = Date()
             logTransferStart(
                 id: itemID,
                 direction: "upload",
@@ -138,7 +222,7 @@ final class TransferManager: ObservableObject {
                     direction: "upload",
                     mode: "sftp",
                     bytes: transferSize,
-                    startedAt: transferStart
+                    startedAt: sftpStart
                 )
             } catch is CancellationError {
                 updateStatus(id: itemID, status: .cancelled)
@@ -147,7 +231,7 @@ final class TransferManager: ObservableObject {
                     direction: "upload",
                     mode: "sftp",
                     bytes: transferSize,
-                    startedAt: transferStart
+                    startedAt: sftpStart
                 )
             } catch {
                 updateStatus(id: itemID, status: .failed)
@@ -163,7 +247,7 @@ final class TransferManager: ObservableObject {
                     direction: "upload",
                     mode: "sftp",
                     bytes: transferSize,
-                    startedAt: transferStart,
+                    startedAt: sftpStart,
                     error: error
                 )
             }
@@ -235,18 +319,32 @@ final class TransferManager: ObservableObject {
                     cleanupTask(id: itemID)
                     return
                 } catch {
-                    // rsync failed — fall back to SFTP
+                    // rsync failed — fall back to SFTP if it's a file
                     activeRsyncs[itemID] = nil
-                    updateProgress(id: itemID, progress: 0)
-                    logTransferFailed(
-                        id: itemID,
-                        direction: "upload",
-                        mode: "rsync",
-                        bytes: transferSize,
-                        startedAt: rsyncStart,
-                        error: error
-                    )
-                    transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
+                    var isDir = ObjCBool(false)
+                    if FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDir), !isDir.boolValue {
+                        updateProgress(id: itemID, progress: 0)
+                        logTransferFailed(
+                            id: itemID,
+                            direction: "upload",
+                            mode: "rsync",
+                            bytes: transferSize,
+                            startedAt: rsyncStart,
+                            error: error
+                        )
+                        transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
+                    } else {
+                        updateStatus(id: itemID, status: .failed)
+                        sftpService.errorMessage = transferFailureMessage(
+                            operation: "upload",
+                            source: localURL.path,
+                            destination: destinationPath,
+                            error: error,
+                            suggestedFix: "check remote write permissions and available disk space"
+                        )
+                        cleanupTask(id: itemID)
+                        return
+                    }
                 }
             }
 
@@ -573,6 +671,46 @@ final class TransferManager: ObservableObject {
             let result = try await rsync.dryRunDownload(
                 remotePath: sftpService.currentPath,
                 localPath: localDir.path,
+                host: sftpService.connectedHost,
+                username: sftpService.connectedUsername,
+                auth: rsyncAuth
+            )
+            dryRunResult = result
+        } catch is CancellationError {
+            // user cancelled, nothing to report
+        } catch {
+            sftpService.errorMessage = "Dry-run preview failed: \(error.localizedDescription). Suggested fix: verify connection and try again."
+        }
+
+        isRunningDryRun = false
+    }
+
+    func runDryRunUpload(localDir: URL) async {
+        guard storeManager.isPro else {
+            sftpService.errorMessage = "Dry-run failed: Pro subscription required. Suggested fix: upgrade to Pro."
+            return
+        }
+        guard sftpService.isConnected else {
+            sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
+            return
+        }
+        guard RsyncTransfer.isAvailable else {
+            sftpService.errorMessage = "Dry-run failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
+            return
+        }
+        guard let rsyncAuth = resolveRsyncAuth() else {
+            sftpService.errorMessage = "Dry-run failed: no auth credentials available. Suggested fix: reconnect to the server."
+            return
+        }
+
+        isRunningDryRun = true
+        dryRunResult = nil
+
+        let rsync = RsyncTransfer()
+        do {
+            let result = try await rsync.dryRunUpload(
+                localPath: localDir.path,
+                remotePath: sftpService.currentPath,
                 host: sftpService.connectedHost,
                 username: sftpService.connectedUsername,
                 auth: rsyncAuth

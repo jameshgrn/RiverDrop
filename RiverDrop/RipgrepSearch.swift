@@ -34,9 +34,12 @@ struct RipgrepJSONData: Codable {
 
 func parseRipgrepJSON(_ data: Data) -> [RipgrepResult] {
     let decoder = JSONDecoder()
-    let lines = data.split(separator: 10) // newline
-    return lines.compactMap { lineData in
-        guard let message = try? decoder.decode(RipgrepJSONMessage.self, from: lineData),
+    guard let output = String(data: data, encoding: .utf8) else { return [] }
+
+    let lines = output.split(whereSeparator: { $0.isNewline })
+    return lines.compactMap { line in
+        guard let lineData = line.data(using: .utf8),
+              let message = try? decoder.decode(RipgrepJSONMessage.self, from: lineData),
               message.type == "match",
               let data = message.data,
               let path = data.path?.text,
