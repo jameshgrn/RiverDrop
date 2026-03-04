@@ -7,51 +7,54 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4A5B6C7D8E9F0123456789CD /* DefaultsKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */; };
+		12B5AF4F0F0C5833DA2A7F40 /* DefaultsKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72136A46D625223BF3D6241 /* DefaultsKey.swift */; };
+		14EA0F7C4DD7F8B26FA4A50E /* DryRunPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5F6482B89B85A190B9B2D92 /* DryRunPreviewView.swift */; };
+		2CCD926E9A53A04B41ECED7A /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */; };
+		3116B4A1256173EBF1B77DFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F268EE2F1B0C60286617AE1 /* Assets.xcassets */; };
+		34E1495F71BCEE0E008B63AF /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667ECBE9A818F337254038FE /* PaywallView.swift */; };
+		4F28F3D1B3DFA5355BDD808F /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */; };
 		502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E55F09D483C9B50F4EB55B /* ConnectionView.swift */; };
+		54078D9F193B06AAFA7280E0 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CFF55558285CBA891F0146D /* StoreManager.swift */; };
 		59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E8753DBA408E9165BECC22 /* TransferManager.swift */; };
 		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
+		687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */; };
 		6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92F4E94228FEDA36172E00B /* KeychainHelper.swift */; };
+		79B1FC1D9D1D6A95D3159756 /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B534458F7928E586D46EEA2A /* LocalBrowserView.swift */; };
 		892BA864188D054CBA8A031C /* SFTPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B074F1E942FFDA1B37584C /* SFTPService.swift */; };
 		98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 475DC44F97CE166D9CB71385 /* RiverDropApp.swift */; };
-		A5B6C7D8E9F01234567890AB /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */; };
+		A3CFF019F901DFA05F00E600 /* RiverDrop.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 809ED4C4ED36643B3F64854F /* RiverDrop.storekit */; };
 		AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */; };
-		B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */; };
-		B6C7D8E9F0A12345678901BC /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */; };
-		C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */; };
-		D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */; };
-		D4E5F6A7B8C90D23456789AB /* DryRunPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */; };
-		F5A6B7C8D9E01142637A8B9C /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */; };
-		E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */; };
-		F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */; };
-		A1B2C3D4E5F6071829DSGN01 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */; };
-		A1B2C3D4E5F6071829DRPZ01 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */; };
+		AC8FA9A26B97DE0B4379EA6E /* LocalFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */; };
 		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
+		E354C4401A478986163776B9 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E53433680D587385A34112 /* DesignSystem.swift */; };
+		E6FCE06170BDCA20193F3B74 /* RipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB90A53412316A0A7C768615 /* RipgrepSearch.swift */; };
+		F23FBC40991E57D4B9885BCE /* SSHKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B146A2ACB6A8B2AAFC8D4874 /* SSHKeyManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsKey.swift; sourceTree = "<group>"; };
 		0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFileItem.swift; sourceTree = "<group>"; };
-		C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
 		12B074F1E942FFDA1B37584C /* SFTPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFTPService.swift; sourceTree = "<group>"; };
-		D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
-		E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrowserView.swift; sourceTree = "<group>"; };
-		F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DryRunPreviewView.swift; sourceTree = "<group>"; };
 		178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RiverDrop.entitlements; sourceTree = "<group>"; };
 		19E8753DBA408E9165BECC22 /* TransferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferManager.swift; sourceTree = "<group>"; };
+		1CFF55558285CBA891F0146D /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		3F268EE2F1B0C60286617AE1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		43E55F09D483C9B50F4EB55B /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
 		475DC44F97CE166D9CB71385 /* RiverDropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiverDropApp.swift; sourceTree = "<group>"; };
+		667ECBE9A818F337254038FE /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
+		7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
+		809ED4C4ED36643B3F64854F /* RiverDrop.storekit */ = {isa = PBXFileReference; path = RiverDrop.storekit; sourceTree = "<group>"; };
+		87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
+		96E53433680D587385A34112 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		A0880142BC3495737E61F70D /* RiverDrop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RiverDrop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B146A2ACB6A8B2AAFC8D4874 /* SSHKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeyManager.swift; sourceTree = "<group>"; };
+		B534458F7928E586D46EEA2A /* LocalBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrowserView.swift; sourceTree = "<group>"; };
+		B5F6482B89B85A190B9B2D92 /* DryRunPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DryRunPreviewView.swift; sourceTree = "<group>"; };
+		C72136A46D625223BF3D6241 /* DefaultsKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsKey.swift; sourceTree = "<group>"; };
 		C7584E43BAC720FCB206A8B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RipgrepSearch.swift; sourceTree = "<group>"; };
-		B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
-		F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeyManager.swift; sourceTree = "<group>"; };
+		D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
+		EB90A53412316A0A7C768615 /* RipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RipgrepSearch.swift; sourceTree = "<group>"; };
 		F92F4E94228FEDA36172E00B /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
-		F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
-		2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
-		3C4D5E6F70819204B5C6E0F1 /* RiverDrop.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = RiverDrop.storekit; sourceTree = "<group>"; };
-		A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,26 +80,27 @@
 		BD9941B6E99A010F5621E78E /* RiverDrop */ = {
 			isa = PBXGroup;
 			children = (
+				3F268EE2F1B0C60286617AE1 /* Assets.xcassets */,
 				43E55F09D483C9B50F4EB55B /* ConnectionView.swift */,
-				7D8E9F0A1B2C3D4E5F607182 /* DefaultsKey.swift */,
-				A1B2C3D4E5F6071829DSGN00 /* DesignSystem.swift */,
-				A1B2C3D4E5F6071829DRPZ00 /* DropZoneView.swift */,
-				F6A7B8C9D0E12345678901BC /* DryRunPreviewView.swift */,
+				C72136A46D625223BF3D6241 /* DefaultsKey.swift */,
+				96E53433680D587385A34112 /* DesignSystem.swift */,
+				87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */,
+				B5F6482B89B85A190B9B2D92 /* DryRunPreviewView.swift */,
 				F92F4E94228FEDA36172E00B /* KeychainHelper.swift */,
-				E2F3A4B5C6D70819304B5C6D /* LocalBrowserView.swift */,
-				D1E2F3A4B5C60718293A4B5C /* LocalFileItem.swift */,
+				B534458F7928E586D46EEA2A /* LocalBrowserView.swift */,
+				7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */,
 				C7584E43BAC720FCB206A8B4 /* MainView.swift */,
-				2B3C4D5E6F708193A4B5C6E0 /* PaywallView.swift */,
+				667ECBE9A818F337254038FE /* PaywallView.swift */,
 				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
-				C3D4E5F6A7B80920415C6D7E /* RemoteRipgrepSearch.swift */,
-				A1B2C3D4E5F60718293A4B5C /* RipgrepSearch.swift */,
+				D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */,
+				EB90A53412316A0A7C768615 /* RipgrepSearch.swift */,
 				178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */,
+				809ED4C4ED36643B3F64854F /* RiverDrop.storekit */,
 				475DC44F97CE166D9CB71385 /* RiverDropApp.swift */,
-				3C4D5E6F70819204B5C6E0F1 /* RiverDrop.storekit */,
-				B2C3D4E5F6A70819304B5C6E /* RsyncTransfer.swift */,
+				79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */,
 				12B074F1E942FFDA1B37584C /* SFTPService.swift */,
-				F5A6B7C8D9E01234567890AB /* SSHKeyManager.swift */,
-				F1A2B3C4D5E60718293A4B5D /* StoreManager.swift */,
+				B146A2ACB6A8B2AAFC8D4874 /* SSHKeyManager.swift */,
+				1CFF55558285CBA891F0146D /* StoreManager.swift */,
 				19E8753DBA408E9165BECC22 /* TransferManager.swift */,
 			);
 			path = RiverDrop;
@@ -118,6 +122,7 @@
 			buildConfigurationList = C6F567D05CB2A3DB4C88B7C4 /* Build configuration list for PBXNativeTarget "RiverDrop" */;
 			buildPhases = (
 				0FD60DEA81C6986AE2E8E2CC /* Sources */,
+				EA4357DA39277413570C4762 /* Resources */,
 				02B242CE2D1A68409FC1A67C /* Frameworks */,
 			);
 			buildRules = (
@@ -168,29 +173,41 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		EA4357DA39277413570C4762 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3116B4A1256173EBF1B77DFB /* Assets.xcassets in Resources */,
+				A3CFF019F901DFA05F00E600 /* RiverDrop.storekit in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		0FD60DEA81C6986AE2E8E2CC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */,
-				4A5B6C7D8E9F0123456789CD /* DefaultsKey.swift in Sources */,
-				A1B2C3D4E5F6071829DSGN01 /* DesignSystem.swift in Sources */,
-				A1B2C3D4E5F6071829DRPZ01 /* DropZoneView.swift in Sources */,
-				D4E5F6A7B8C90D23456789AB /* DryRunPreviewView.swift in Sources */,
+				12B5AF4F0F0C5833DA2A7F40 /* DefaultsKey.swift in Sources */,
+				E354C4401A478986163776B9 /* DesignSystem.swift in Sources */,
+				4F28F3D1B3DFA5355BDD808F /* DropZoneView.swift in Sources */,
+				14EA0F7C4DD7F8B26FA4A50E /* DryRunPreviewView.swift in Sources */,
 				6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */,
-				C2B3D4E5F6A70819304B5C6D /* LocalBrowserView.swift in Sources */,
-				B1A2C3D4E5F60718293A4B5C /* LocalFileItem.swift in Sources */,
+				79B1FC1D9D1D6A95D3159756 /* LocalBrowserView.swift in Sources */,
+				AC8FA9A26B97DE0B4379EA6E /* LocalFileItem.swift in Sources */,
 				5D738D461AD957016FF547F5 /* MainView.swift in Sources */,
-				B6C7D8E9F0A12345678901BC /* PaywallView.swift in Sources */,
+				34E1495F71BCEE0E008B63AF /* PaywallView.swift in Sources */,
 				AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */,
-				F5A6B7C8D9E01142637A8B9C /* RemoteRipgrepSearch.swift in Sources */,
-				D3E4F5A6B7C80920415D6E7F /* RipgrepSearch.swift in Sources */,
+				687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */,
+				E6FCE06170BDCA20193F3B74 /* RipgrepSearch.swift in Sources */,
 				98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */,
-				E4F5A6B7C8D91031526E7F80 /* RsyncTransfer.swift in Sources */,
+				2CCD926E9A53A04B41ECED7A /* RsyncTransfer.swift in Sources */,
 				892BA864188D054CBA8A031C /* SFTPService.swift in Sources */,
-				F5A6B7C8D9E01234567890AC /* SSHKeyManager.swift in Sources */,
-				A5B6C7D8E9F01234567890AB /* StoreManager.swift in Sources */,
+				F23FBC40991E57D4B9885BCE /* SSHKeyManager.swift in Sources */,
+				54078D9F193B06AAFA7280E0 /* StoreManager.swift in Sources */,
 				59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
