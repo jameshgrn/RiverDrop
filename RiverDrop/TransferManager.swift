@@ -35,7 +35,6 @@ final class TransferManager: ObservableObject {
     var onDownloadCompleted: ((String) -> Void)?
 
     private let sftpService: SFTPService
-    private let storeManager: StoreManager
     private var activeTasks: [UUID: Task<Void, Never>] = [:]
     private var activeRsyncs: [UUID: RsyncTransfer] = [:]
 
@@ -44,9 +43,8 @@ final class TransferManager: ObservableObject {
         case fullPath(String)
     }
 
-    init(sftpService: SFTPService, storeManager: StoreManager) {
+    init(sftpService: SFTPService) {
         self.sftpService = sftpService
-        self.storeManager = storeManager
     }
 
     // MARK: - Cancel
@@ -81,7 +79,7 @@ final class TransferManager: ObservableObject {
         }
 
         let rsyncAuth = resolveRsyncAuth()
-        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil && storeManager.isPro
+        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         if isDirectory.boolValue && !useRsync {
             recordSkippedTransfer(filename: localURL.lastPathComponent, isUpload: true)
@@ -119,7 +117,7 @@ final class TransferManager: ObservableObject {
             : destinationPath + "/" + remoteName
 
         let rsyncAuth = resolveRsyncAuth()
-        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil && storeManager.isPro
+        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         let task = Task {
             if useRsync, let rsyncAuth {
@@ -267,7 +265,7 @@ final class TransferManager: ObservableObject {
             : destinationPath + "/" + localURL.lastPathComponent
 
         let rsyncAuth = resolveRsyncAuth()
-        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil && storeManager.isPro
+        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         let task = Task {
             if useRsync, let rsyncAuth {
@@ -497,7 +495,7 @@ final class TransferManager: ObservableObject {
         let transferSize = size
 
         let rsyncAuth = resolveRsyncAuth()
-        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil && storeManager.isPro
+        let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         let task = Task {
             if useRsync, let rsyncAuth {
@@ -647,10 +645,6 @@ final class TransferManager: ObservableObject {
     // MARK: - Dry Run
 
     func runDryRunDownload(localDir: URL) async {
-        guard storeManager.isPro else {
-            sftpService.errorMessage = "Dry-run failed: Pro subscription required. Suggested fix: upgrade to Pro."
-            return
-        }
         guard sftpService.isConnected else {
             sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
             return
@@ -687,10 +681,6 @@ final class TransferManager: ObservableObject {
     }
 
     func runDryRunUpload(localDir: URL) async {
-        guard storeManager.isPro else {
-            sftpService.errorMessage = "Dry-run failed: Pro subscription required. Suggested fix: upgrade to Pro."
-            return
-        }
         guard sftpService.isConnected else {
             sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
             return
@@ -729,9 +719,6 @@ final class TransferManager: ObservableObject {
     // MARK: - Apply Sync (awaitable)
 
     func applySyncDownload(localDir: URL) async throws {
-        guard storeManager.isPro else {
-            throw SyncError.notPro
-        }
         guard sftpService.isConnected else {
             throw SyncError.notConnected
         }
@@ -814,9 +801,6 @@ final class TransferManager: ObservableObject {
     }
 
     func applySyncUpload(localDir: URL) async throws {
-        guard storeManager.isPro else {
-            throw SyncError.notPro
-        }
         guard sftpService.isConnected else {
             throw SyncError.notConnected
         }
@@ -899,15 +883,12 @@ final class TransferManager: ObservableObject {
     }
 
     enum SyncError: LocalizedError {
-        case notPro
         case notConnected
         case rsyncUnavailable
         case noAuth
 
         var errorDescription: String? {
             switch self {
-            case .notPro:
-                "Sync failed: Pro subscription required. Suggested fix: upgrade to Pro."
             case .notConnected:
                 "Sync failed: not connected to a server. Suggested fix: connect first."
             case .rsyncUnavailable:
@@ -921,10 +902,6 @@ final class TransferManager: ObservableObject {
     // MARK: - Directory Sync
 
     func syncDirectory(localDir: URL) {
-        guard storeManager.isPro else {
-            sftpService.errorMessage = "Sync failed: Pro subscription required. Suggested fix: upgrade to Pro."
-            return
-        }
         guard sftpService.isConnected else {
             sftpService.errorMessage = "Sync failed: not connected to a server. Suggested fix: connect first."
             return
@@ -1012,10 +989,6 @@ final class TransferManager: ObservableObject {
     }
 
     func syncUpload(localDir: URL) {
-        guard storeManager.isPro else {
-            sftpService.errorMessage = "Sync failed: Pro subscription required. Suggested fix: upgrade to Pro."
-            return
-        }
         guard sftpService.isConnected else {
             sftpService.errorMessage = "Sync failed: not connected to a server. Suggested fix: connect first."
             return

@@ -9,8 +9,6 @@ private struct SavedBookmark: Codable, Equatable {
 struct LocalBrowserView: View {
     @EnvironmentObject var transferManager: TransferManager
     @EnvironmentObject var sftpService: SFTPService
-    @EnvironmentObject var storeManager: StoreManager
-
     @Binding var localCurrentDirectory: URL
     @Binding var recentlyDownloaded: Set<String>
     @Binding var showDryRunPreview: Bool
@@ -28,7 +26,6 @@ struct LocalBrowserView: View {
     @State private var fileTypeFilter = ""
     @State private var highlightFileName: String?
     @StateObject private var ripgrepSearch = RipgrepSearch()
-    @State private var showPaywall = false
     @State private var showDeleteConfirmation = false
     @State private var itemToDelete: LocalFileItem?
     @State private var showTrashConfirmation = false
@@ -38,8 +35,6 @@ struct LocalBrowserView: View {
     @State private var stagedUploads: [StagedItem] = []
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenFiles = false
     @State private var savedBookmarks: [SavedBookmark] = []
-
-    private static let freeBookmarkLimit = 5
 
     private static let defaultBookmarks: [(label: String, path: String)] = [
         ("Projects", "/Users/\(NSUserName())/projects"),
@@ -113,9 +108,6 @@ struct LocalBrowserView: View {
         }
         .onDisappear {
             stopSecurityScopedAccess()
-        }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
         }
         .alert("Delete Permanently?", isPresented: $showDeleteConfirmation, presenting: itemToDelete) { file in
             Button("Delete", role: .destructive) { permanentlyDelete(file) }
@@ -229,18 +221,14 @@ struct LocalBrowserView: View {
                 .padding(.vertical, 3)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
 
-                // Dry run — visible because it's a paid feature
+                // Dry run
                 Button {
-                    if storeManager.isPro {
-                        Task {
-                            dryRunIsUpload = true
-                            await transferManager.runDryRunUpload(localDir: localCurrentDirectory)
-                            if transferManager.dryRunResult != nil {
-                                showDryRunPreview = true
-                            }
+                    Task {
+                        dryRunIsUpload = true
+                        await transferManager.runDryRunUpload(localDir: localCurrentDirectory)
+                        if transferManager.dryRunResult != nil {
+                            showDryRunPreview = true
                         }
-                    } else {
-                        showPaywall = true
                     }
                 } label: {
                     if transferManager.isRunningDryRun {
@@ -266,13 +254,9 @@ struct LocalBrowserView: View {
                     }
 
                     Button {
-                        if storeManager.isPro {
-                            showContentSearch.toggle()
-                            if !showContentSearch {
-                                ripgrepSearch.cancel()
-                            }
-                        } else {
-                            showPaywall = true
+                        showContentSearch.toggle()
+                        if !showContentSearch {
+                            ripgrepSearch.cancel()
                         }
                     } label: {
                         Label("Content Search", systemImage: "doc.text.magnifyingglass")
@@ -716,11 +700,6 @@ struct LocalBrowserView: View {
         let label = localCurrentDirectory.lastPathComponent
 
         guard !isCurrentFolderBookmarked else { return }
-
-        if !storeManager.isPro && savedBookmarks.count >= Self.freeBookmarkLimit {
-            showPaywall = true
-            return
-        }
 
         savedBookmarks.append(SavedBookmark(label: label, path: path))
         persistBookmarks()

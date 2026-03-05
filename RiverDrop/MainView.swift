@@ -134,9 +134,6 @@ private struct StagedChipView: View {
 struct MainView: View {
     @EnvironmentObject var sftpService: SFTPService
     @EnvironmentObject var transferManager: TransferManager
-    @EnvironmentObject var storeManager: StoreManager
-
-    @State private var showPaywall = false
     @State private var remoteSelectedIDs: Set<RemoteFileItem.ID> = []
     @AppStorage(DefaultsKey.defaultLocalDirectory) private var defaultLocalDirectory = ""
     @State private var localCurrentDirectory = URL(fileURLWithPath: "/Users/\(NSUserName())/projects")
@@ -306,25 +303,20 @@ struct MainView: View {
                     isApplying: transferManager.isApplyingSync,
                     onConfirm: {
                         guard !transferManager.isApplyingSync else { return }
-                        if storeManager.isPro {
-                            Task {
-                                do {
-                                    if dryRunIsUpload {
-                                        try await transferManager.applySyncUpload(localDir: localCurrentDirectory)
-                                    } else {
-                                        try await transferManager.applySyncDownload(localDir: localCurrentDirectory)
-                                    }
-                                    showDryRunPreview = false
-                                    await sftpService.listDirectory()
-                                } catch is CancellationError {
-                                    // user cancelled, keep sheet open
-                                } catch {
-                                    sftpService.errorMessage = error.localizedDescription
+                        Task {
+                            do {
+                                if dryRunIsUpload {
+                                    try await transferManager.applySyncUpload(localDir: localCurrentDirectory)
+                                } else {
+                                    try await transferManager.applySyncDownload(localDir: localCurrentDirectory)
                                 }
+                                showDryRunPreview = false
+                                await sftpService.listDirectory()
+                            } catch is CancellationError {
+                                // user cancelled, keep sheet open
+                            } catch {
+                                sftpService.errorMessage = error.localizedDescription
                             }
-                        } else {
-                            showDryRunPreview = false
-                            showPaywall = true
                         }
                     },
                     onCancel: {
@@ -335,9 +327,6 @@ struct MainView: View {
         }
         .onChange(of: remoteSearchText) { _, _ in
             remoteDisplayLimit = 200
-        }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
         }
     }
 
@@ -400,18 +389,14 @@ struct MainView: View {
                 .padding(.vertical, 3)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
 
-                // Dry run — visible because it's a paid feature
+                // Dry run
                 Button {
-                    if storeManager.isPro {
-                        Task {
-                            dryRunIsUpload = false
-                            await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
-                            if transferManager.dryRunResult != nil {
-                                showDryRunPreview = true
-                            }
+                    Task {
+                        dryRunIsUpload = false
+                        await transferManager.runDryRunDownload(localDir: localCurrentDirectory)
+                        if transferManager.dryRunResult != nil {
+                            showDryRunPreview = true
                         }
-                    } else {
-                        showPaywall = true
                     }
                 } label: {
                     if transferManager.isRunningDryRun {
@@ -437,13 +422,9 @@ struct MainView: View {
                     }
 
                     Button {
-                        if storeManager.isPro {
-                            showRemoteContentSearch.toggle()
-                            if !showRemoteContentSearch {
-                                remoteRipgrepSearch.cancel()
-                            }
-                        } else {
-                            showPaywall = true
+                        showRemoteContentSearch.toggle()
+                        if !showRemoteContentSearch {
+                            remoteRipgrepSearch.cancel()
                         }
                     } label: {
                         Label("Content Search", systemImage: "doc.text.magnifyingglass")

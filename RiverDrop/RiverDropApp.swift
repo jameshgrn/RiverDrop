@@ -4,8 +4,6 @@ import SwiftUI
 struct RiverDropApp: App {
     @StateObject private var sftpService: SFTPService
     @StateObject private var transferManager: TransferManager
-    @StateObject private var storeManager: StoreManager
-    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenLocalFiles = false
     @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
@@ -13,10 +11,8 @@ struct RiverDropApp: App {
 
     init() {
         let service = SFTPService()
-        let store = StoreManager()
         _sftpService = StateObject(wrappedValue: service)
-        _storeManager = StateObject(wrappedValue: store)
-        _transferManager = StateObject(wrappedValue: TransferManager(sftpService: service, storeManager: store))
+        _transferManager = StateObject(wrappedValue: TransferManager(sftpService: service))
     }
 
     var body: some Scene {
@@ -30,13 +26,7 @@ struct RiverDropApp: App {
             }
             .environmentObject(sftpService)
             .environmentObject(transferManager)
-            .environmentObject(storeManager)
             .frame(minWidth: 800, minHeight: 550)
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active {
-                    Task { await storeManager.checkEntitlements() }
-                }
-            }
         }
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
