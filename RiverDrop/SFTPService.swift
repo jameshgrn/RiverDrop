@@ -1,5 +1,6 @@
 import Citadel
 import Foundation
+import Network
 import NIO
 import NIOConcurrencyHelpers
 import NIOSSH
@@ -19,6 +20,8 @@ final class SFTPService {
     var errorMessage: String?
     private(set) var isLoadingDirectory = false
     private(set) var connectedAuthConfig: SSHAuthConfig?
+    private(set) var isReconnecting = false
+    private(set) var reconnectionAttempt = 0
     private var connectedProxyJump: String?
     private var connectedPort = 22
 
@@ -39,6 +42,12 @@ final class SFTPService {
 
     private let session = SFTPSession()
     private var reconnectTask: Task<Void, Never>?
+    private var networkMonitor: NWPathMonitor?
+    private var networkMonitorQueue = DispatchQueue(label: "com.riverdrop.networkmonitor")
+    private var lastNetworkStatus: NWPath.Status?
+
+    private static let maxReconnectAttempts = 10
+    private static let maxBackoffSeconds: Double = 60
 
     func connect(host: String, username: String, password: String) async {
         await connect(host: host, username: username, auth: .password(password))
@@ -203,6 +212,7 @@ final class SFTPService {
     func disconnect() async {
         reconnectTask?.cancel()
         reconnectTask = nil
+        stopNetworkMonitor()
 
         do {
             try await session.disconnect()
@@ -216,6 +226,8 @@ final class SFTPService {
         }
 
         isConnected = false
+        isReconnecting = false
+        reconnectionAttempt = 0
         connectedUsername = ""
         connectedHost = ""
         connectedAuthConfig = nil
@@ -233,10 +245,37 @@ final class SFTPService {
         do {
             // Quick heartbeat
             _ = try await session.resolvePath(atPath: ".")
+            // Heartbeat succeeded -- reset reconnection state
+            if isReconnecting {
+                isReconnecting = false
+                reconnectionAttempt = 0
+            }
         } catch {
-            // Connection lost, attempt reauth/reconnect
+            // Connection lost, attempt reconnect with exponential backoff
+            await reconnectWithBackoff(auth: auth)
+        }
+    }
+
+    /// Attempts reconnection with exponential backoff: 2s, 4s, 8s, 16s ... up to 60s, max 10 attempts.
+    private func reconnectWithBackoff(auth: SSHAuthConfig) async {
+        guard !isReconnecting else { return }
+        isReconnecting = true
+        reconnectionAttempt = 0
+
+        while reconnectionAttempt < Self.maxReconnectAttempts, isConnected {
+            reconnectionAttempt += 1
+            let delay = min(pow(2.0, Double(reconnectionAttempt)), Self.maxBackoffSeconds)
+            sftpLogger.info("Reconnection attempt \(reconnectionAttempt)/\(Self.maxReconnectAttempts) in \(delay)s")
+
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch {
+                // Task cancelled
+                break
+            }
+
             _ = await runKinitKlog()
-            
+
             do {
                 let knownHostKey = HostKeyStore.load(for: connectedHost)
                 let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
@@ -257,12 +296,21 @@ final class SFTPService {
                         hostKeyValidator: .custom(validator)
                     )
                 }
+                // Reconnect succeeded
                 errorMessage = nil
+                isReconnecting = false
+                reconnectionAttempt = 0
+                sftpLogger.info("Reconnection succeeded")
+                return
             } catch {
-                errorMessage = "Re-authentication failed: \(error.localizedDescription). Suggested fix: check your credentials and network connection."
-                isConnected = false
+                sftpLogger.warning("Reconnection attempt \(reconnectionAttempt) failed: \(error.localizedDescription)")
             }
         }
+
+        // All attempts exhausted
+        isReconnecting = false
+        errorMessage = "Re-authentication failed after \(reconnectionAttempt) attempts. Suggested fix: check your credentials and network connection."
+        isConnected = false
     }
 
     private func startReconnectionTimer() {
@@ -274,6 +322,35 @@ final class SFTPService {
                 await ensureConnected()
             }
         }
+        startNetworkMonitor()
+    }
+
+    private func startNetworkMonitor() {
+        stopNetworkMonitor()
+        let monitor = NWPathMonitor()
+        networkMonitor = monitor
+        lastNetworkStatus = nil
+
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let previous = self.lastNetworkStatus
+                self.lastNetworkStatus = path.status
+
+                // Trigger reconnect when network transitions from unsatisfied to satisfied
+                if previous == .unsatisfied, path.status == .satisfied, self.isConnected {
+                    sftpLogger.info("Network restored, triggering reconnection")
+                    await self.ensureConnected()
+                }
+            }
+        }
+        monitor.start(queue: networkMonitorQueue)
+    }
+
+    private func stopNetworkMonitor() {
+        networkMonitor?.cancel()
+        networkMonitor = nil
+        lastNetworkStatus = nil
     }
 
     /// Runs kinit and klog locally to refresh credentials for academic/HPC users.

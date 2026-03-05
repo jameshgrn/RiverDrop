@@ -11,11 +11,14 @@ struct SettingsView: View {
 
             TransferSettingsTab()
                 .tabItem { Label("Transfer", systemImage: "arrow.up.arrow.down") }
-                
+
+            SecuritySettingsTab()
+                .tabItem { Label("Security", systemImage: "lock.shield") }
+
             AdvancedSettingsTab()
                 .tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
         }
-        .frame(width: 450, height: 300)
+        .frame(width: 500, height: 340)
     }
 }
 
@@ -86,6 +89,21 @@ private struct TransferSettingsTab: View {
     }
 }
 
+// MARK: - Security
+
+private struct SecuritySettingsTab: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Stored Host Keys")
+                .font(.headline)
+                .padding([.top, .horizontal])
+                .padding(.bottom, RD.Spacing.sm)
+
+            HostKeyManagementView()
+        }
+    }
+}
+
 // MARK: - Advanced
 
 private struct AdvancedSettingsTab: View {
@@ -98,7 +116,7 @@ private struct AdvancedSettingsTab: View {
                 TextField("rsync path", text: $customRsyncPath, prompt: Text("/opt/homebrew/bin/rsync"))
                     .textFieldStyle(.roundedBorder)
                     .help("Leave blank to use default system path.")
-                
+
                 TextField("rg (ripgrep) path", text: $customRgPath, prompt: Text("/opt/homebrew/bin/rg"))
                     .textFieldStyle(.roundedBorder)
                     .help("Leave blank to use default system path.")

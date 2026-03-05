@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct RiverDropApp: App {
+    @State private var licenseManager = LicenseManager()
     @State private var sftpService: SFTPService
     @State private var transferManager: TransferManager
     @State private var serverStore = ServerStore()
@@ -21,22 +22,32 @@ struct RiverDropApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationSplitView {
-                SidebarView(selectedServerID: $selectedServerID)
-            } detail: {
-                if sftpService.isConnected {
-                    MainView()
-                } else if let serverID = selectedServerID,
-                          let server = serverStore.servers.first(where: { $0.id == serverID }) {
-                    ConnectionView(prefill: server)
+            Group {
+                if licenseManager.isLicensed {
+                    NavigationSplitView {
+                        SidebarView(selectedServerID: $selectedServerID)
+                    } detail: {
+                        if sftpService.isConnected {
+                            MainView()
+                        } else if let serverID = selectedServerID,
+                                  let server = serverStore.servers.first(where: { $0.id == serverID }) {
+                            ConnectionView(prefill: server)
+                        } else {
+                            ConnectionView()
+                        }
+                    }
                 } else {
-                    ConnectionView()
+                    LicenseView()
                 }
             }
+            .environment(licenseManager)
             .environment(sftpService)
             .environment(transferManager)
             .environment(serverStore)
             .frame(minWidth: 800, minHeight: 550)
+            .task {
+                await licenseManager.loadStoredLicense()
+            }
         }
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {

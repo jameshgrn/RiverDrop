@@ -19,7 +19,7 @@ enum SSHConfigParser {
     // MARK: - Private
 
     /// Extract Host directive names, skipping wildcards and `Host *`.
-    private static func extractHostAliases(from contents: String) -> [String] {
+    static func extractHostAliases(from contents: String) -> [String] {
         var aliases: [String] = []
         for line in contents.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -63,7 +63,7 @@ enum SSHConfigParser {
         return buildEntry(alias: alias, from: output)
     }
 
-    private static func buildEntry(alias: String, from output: String) -> ServerEntry {
+    static func buildEntry(alias: String, from output: String) -> ServerEntry {
         var hostname = alias
         var user = NSUserName()
         var port = 22

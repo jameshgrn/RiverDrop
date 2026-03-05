@@ -3,7 +3,10 @@ import SwiftUI
 private enum AuthMode: String, CaseIterable {
     case password = "Password"
     case sshKey = "SSH Key"
+    case keyboardInteractive = "2FA"
 }
+
+private let disabledAuthModes: Set<AuthMode> = [.keyboardInteractive]
 
 struct ConnectionView: View {
     @Environment(SFTPService.self) var sftpService
@@ -27,6 +30,8 @@ struct ConnectionView: View {
             return !password.isEmpty
         case .sshKey:
             return !sshKeyPath.isEmpty
+        case .keyboardInteractive:
+            return false
         }
     }
 
@@ -144,6 +149,8 @@ struct ConnectionView: View {
                     secureInputField(icon: "key", placeholder: "Password", text: $password)
                 case .sshKey:
                     sshKeySection
+                case .keyboardInteractive:
+                    keyboardInteractiveNotice
                 }
             }
             .animation(.easeInOut(duration: 0.1), value: authMode)
@@ -157,22 +164,27 @@ struct ConnectionView: View {
     private var authModePicker: some View {
         HStack(spacing: 0) {
             ForEach(AuthMode.allCases, id: \.self) { mode in
+                let isDisabled = disabledAuthModes.contains(mode)
                 Button {
+                    guard !isDisabled else { return }
                     withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
                         authMode = mode
                     }
                 } label: {
                     HStack(spacing: RD.Spacing.xs) {
-                        Image(systemName: mode == .password ? "key.fill" : "key.radiowaves.forward")
+                        Image(systemName: authModeIcon(mode))
                             .font(.caption2)
                         Text(mode.rawValue)
                             .font(.callout.weight(.medium))
                     }
-                    .foregroundStyle(authMode == mode ? .white : .secondary)
+                    .foregroundStyle(
+                        isDisabled ? .quaternary :
+                            authMode == mode ? .white : .secondary
+                    )
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, RD.Spacing.sm)
                     .background {
-                        if authMode == mode {
+                        if authMode == mode, !isDisabled {
                             Capsule()
                                 .fill(
                                     LinearGradient(
@@ -187,10 +199,20 @@ struct ConnectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .disabled(isDisabled)
+                .help(isDisabled ? KeyboardInteractiveAuth.unsupportedReason : "")
             }
         }
         .padding(3)
         .background(Color.primary.opacity(0.06), in: Capsule())
+    }
+
+    private func authModeIcon(_ mode: AuthMode) -> String {
+        switch mode {
+        case .password: return "key.fill"
+        case .sshKey: return "key.radiowaves.forward"
+        case .keyboardInteractive: return "lock.trianglebadge.exclamationmark"
+        }
     }
 
     // MARK: - SSH Key Section
@@ -237,6 +259,23 @@ struct ConnectionView: View {
 
             secureInputField(icon: "lock", placeholder: "Passphrase (optional)", text: $passphrase)
         }
+    }
+
+    // MARK: - Keyboard Interactive Notice
+
+    private var keyboardInteractiveNotice: some View {
+        HStack(alignment: .top, spacing: RD.Spacing.sm) {
+            Image(systemName: "info.circle.fill")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+            Text(KeyboardInteractiveAuth.unsupportedReason)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(RD.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
     }
 
     // MARK: - Input Fields
@@ -376,6 +415,8 @@ struct ConnectionView: View {
                     keyPath: sshKeyPath,
                     passphrase: passphrase.isEmpty ? nil : passphrase
                 )
+            case .keyboardInteractive:
+                break // Unreachable: connect button is disabled for this mode
             }
             isConnecting = false
             connectTask = nil
@@ -400,7 +441,8 @@ struct ConnectionView: View {
         if username.isEmpty { username = savedUser }
 
         if let savedMode = UserDefaults.standard.string(forKey: DefaultsKey.lastAuthMode),
-           let mode = AuthMode(rawValue: savedMode)
+           let mode = AuthMode(rawValue: savedMode),
+           !disabledAuthModes.contains(mode)
         {
             authMode = mode
         }

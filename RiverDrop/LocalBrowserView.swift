@@ -1,11 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-private struct SavedBookmark: Codable, Equatable {
-    let label: String
-    let path: String
-}
-
 struct LocalBrowserView: View {
     @Environment(TransferManager.self) var transferManager
     @Environment(SFTPService.self) var sftpService
@@ -36,12 +31,6 @@ struct LocalBrowserView: View {
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenFiles = false
     @State private var savedBookmarks: [SavedBookmark] = []
 
-    private static let defaultBookmarks: [(label: String, path: String)] = [
-        ("Projects", "/Users/\(NSUserName())/projects"),
-        ("Home", "/Users/\(NSUserName())"),
-        ("Cluster Scratch", "/not_backed_up/\(NSUserName())"),
-    ]
-
     private var filteredFiles: [LocalFileItem] {
         fuzzyFilter(items: files, query: searchText) { $0.filename }
     }
@@ -54,10 +43,53 @@ struct LocalBrowserView: View {
         localDisplayLimit < filteredFiles.count
     }
 
+    private var selectedFiles: [LocalFileItem] {
+        files.filter { selectedIDs.contains($0.id) }
+    }
+
+    // MARK: - Body
+
     var body: some View {
         VStack(spacing: 0) {
             PaneHeader("Local", icon: "laptopcomputer", subtitle: localCurrentDirectory.lastPathComponent)
-            toolbar
+            LocalToolbarView(
+                currentDirectory: localCurrentDirectory,
+                isAtRoot: localCurrentDirectory.path == "/",
+                isConnected: sftpService.isConnected,
+                isRunningDryRun: transferManager.isRunningDryRun,
+                filteredCount: filteredFiles.count,
+                displayedCount: displayedFiles.count,
+                hasMoreFiles: hasMoreFiles,
+                selectedCount: selectedIDs.count,
+                recentlyDownloadedCount: recentlyDownloaded.count,
+                searchText: $searchText,
+                showHiddenFiles: $showHiddenFiles,
+                savedBookmarks: $savedBookmarks,
+                onGoUp: { navigateTo(localCurrentDirectory.deletingLastPathComponent()) },
+                onRefresh: { loadDirectory() },
+                onNavigateToBookmark: { navigateToBookmark(path: $0) },
+                onSaveCurrentBookmark: { saveCurrentFolderAsBookmark() },
+                onRemoveBookmark: { removeBookmark($0) },
+                onChooseFolder: { openPanel() },
+                onDryRun: {
+                    Task {
+                        dryRunIsUpload = true
+                        await transferManager.runDryRunUpload(localDir: localCurrentDirectory)
+                        if transferManager.dryRunResult != nil {
+                            showDryRunPreview = true
+                        }
+                    }
+                },
+                onToggleContentSearch: {
+                    showContentSearch.toggle()
+                    if !showContentSearch { ripgrepSearch.cancel() }
+                },
+                onCopyPath: { LocalFileOperations.copyDirectoryPath(localCurrentDirectory) },
+                onClearDownloadHighlights: { recentlyDownloaded = [] },
+                onStageSelected: { stageSelectedForUpload() },
+                onUploadSelected: { uploadSelected() },
+                onDeselectAll: { selectedIDs = [] }
+            )
             Divider()
             BreadcrumbView(
                 components: pathComponents.map { ($0.name, $0.url) },
@@ -65,7 +97,14 @@ struct LocalBrowserView: View {
             )
             Divider()
             if showContentSearch {
-                contentSearchPanel
+                ContentSearchPanel(
+                    ripgrepSearch: ripgrepSearch,
+                    contentSearchQuery: $contentSearchQuery,
+                    isRecursiveSearch: $isRecursiveSearch,
+                    fileTypeFilter: $fileTypeFilter,
+                    onSearch: { runContentSearch() },
+                    onNavigateToResult: { navigateToResult($0) }
+                )
                 Divider()
             }
             fileList
@@ -89,7 +128,7 @@ struct LocalBrowserView: View {
             return true
         }
         .onAppear {
-            loadSavedBookmarks()
+            savedBookmarks = BookmarkManager.load()
             if !hasRequestedAccess {
                 hasRequestedAccess = true
                 requestInitialAccess()
@@ -110,7 +149,13 @@ struct LocalBrowserView: View {
             stopSecurityScopedAccess()
         }
         .alert("Delete Permanently?", isPresented: $showDeleteConfirmation, presenting: itemToDelete) { file in
-            Button("Delete", role: .destructive) { permanentlyDelete(file) }
+            Button("Delete", role: .destructive) {
+                if let err = LocalFileOperations.permanentlyDelete(file) {
+                    sftpService.errorMessage = err
+                }
+                selectedIDs.remove(file.id)
+                loadDirectory()
+            }
             Button("Cancel", role: .cancel) { }
         } message: { file in
             Text("\"\(file.filename)\" will be permanently deleted. This cannot be undone.")
@@ -124,397 +169,17 @@ struct LocalBrowserView: View {
         .alert("Rename", isPresented: $showRenameAlert) {
             TextField("New name", text: $renameText)
             Button("Rename") {
-                if let file = itemToRename { performRename(file) }
+                if let file = itemToRename {
+                    if let err = LocalFileOperations.rename(file, to: renameText) {
+                        sftpService.errorMessage = err
+                    }
+                    loadDirectory()
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Enter a new name:")
         }
-    }
-
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        VStack(spacing: 0) {
-            // Main toolbar row
-            HStack(spacing: RD.Spacing.sm) {
-                // Left: navigation + bookmarks
-                Button { navigateTo(localCurrentDirectory.deletingLastPathComponent()) } label: {
-                    Image(systemName: "chevron.left")
-                        .frame(minWidth: 28, minHeight: 28)
-                        .contentShape(Rectangle())
-                }
-                .frame(width: 28, height: 24)
-                .help("Go up")
-                .accessibilityLabel("Go to parent directory")
-                .disabled(localCurrentDirectory.path == "/")
-
-                Button { loadDirectory() } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .frame(minWidth: 28, minHeight: 28)
-                        .contentShape(Rectangle())
-                }
-                .frame(width: 28, height: 24)
-                .help("Refresh")
-                .accessibilityLabel("Refresh directory listing")
-
-                Menu {
-                    ForEach(Self.defaultBookmarks, id: \.path) { bookmark in
-                        if FileManager.default.fileExists(atPath: bookmark.path) {
-                            Button(bookmark.label) {
-                                navigateToBookmark(path: bookmark.path)
-                            }
-                        }
-                    }
-
-                    if !savedBookmarks.isEmpty {
-                        Divider()
-                        ForEach(savedBookmarks, id: \.path) { bookmark in
-                            Button(bookmark.label) {
-                                navigateToBookmark(path: bookmark.path)
-                            }
-                        }
-                    }
-
-                    Divider()
-
-                    Button("Save Current Folder") {
-                        saveCurrentFolderAsBookmark()
-                    }
-                    .disabled(isCurrentFolderBookmarked)
-
-                    Button("Choose Folder\u{2026}") {
-                        openPanel()
-                    }
-
-                    if !savedBookmarks.isEmpty {
-                        Divider()
-                        Menu("Remove Bookmark") {
-                            ForEach(savedBookmarks, id: \.path) { bookmark in
-                                Button(bookmark.label) {
-                                    removeBookmark(bookmark)
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "bookmark")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Bookmarks")
-                .accessibilityLabel("Bookmarks")
-
-                // Center: filter field (flex)
-                HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    TextField("Filter\u{2026}", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.caption)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
-
-                // Dry run
-                Button {
-                    Task {
-                        dryRunIsUpload = true
-                        await transferManager.runDryRunUpload(localDir: localCurrentDirectory)
-                        if transferManager.dryRunResult != nil {
-                            showDryRunPreview = true
-                        }
-                    }
-                } label: {
-                    if transferManager.isRunningDryRun {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: "eye")
-                    }
-                }
-                .frame(width: 28, height: 24)
-                .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
-                .help("Preview rsync upload changes")
-                .accessibilityLabel("Preview rsync upload changes")
-
-                // Right: overflow menu + count
-                Menu {
-                    Button {
-                        showHiddenFiles.toggle()
-                    } label: {
-                        Label(
-                            showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files",
-                            systemImage: showHiddenFiles ? "eye" : "eye.slash"
-                        )
-                    }
-
-                    Button {
-                        showContentSearch.toggle()
-                        if !showContentSearch {
-                            ripgrepSearch.cancel()
-                        }
-                    } label: {
-                        Label("Content Search", systemImage: "doc.text.magnifyingglass")
-                    }
-                    .disabled(!RipgrepSearch.isAvailable)
-
-                    Button { copyLocalPathToClipboard() } label: {
-                        Label("Copy Local Path", systemImage: "doc.on.clipboard")
-                    }
-
-                    if !recentlyDownloaded.isEmpty {
-                        Button { recentlyDownloaded = [] } label: {
-                            Label("Clear Download Highlights", systemImage: "sparkles")
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("More actions")
-                .accessibilityLabel("More actions")
-
-                StatusBadge(
-                    text: hasMoreFiles
-                        ? "\(displayedFiles.count)/\(filteredFiles.count)"
-                        : "\(filteredFiles.count) items",
-                    color: .secondary
-                )
-            }
-            .padding(.horizontal, RD.Spacing.sm)
-            .padding(.vertical, RD.Spacing.xs + 1)
-
-            // Contextual selection bar
-            if !selectedIDs.isEmpty {
-                Divider()
-                HStack(spacing: RD.Spacing.sm) {
-                    Text("\(selectedIDs.count) selected")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Button { stageSelectedForUpload() } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "tray.and.arrow.up")
-                                .font(.caption2)
-                            Text("Stage")
-                                .font(.caption2.weight(.medium))
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(!sftpService.isConnected)
-                    .help("Stage selected for batch upload")
-
-                    Button { uploadSelected() } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.caption2)
-                            Text("Upload")
-                                .font(.caption2.weight(.medium))
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(!sftpService.isConnected)
-                    .help("Upload \(selectedFiles.count) selected")
-
-                    Button { selectedIDs = [] } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "xmark")
-                                .font(.caption2.weight(.semibold))
-                            Text("Deselect")
-                                .font(.caption2.weight(.medium))
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Deselect all")
-                }
-                .padding(.horizontal, RD.Spacing.sm)
-                .padding(.vertical, RD.Spacing.xs + 1)
-                .background(Color.accentColor.opacity(0.05))
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .animation(.spring(response: 0.2, dampingFraction: 0.85), value: selectedIDs.isEmpty)
-            }
-        }
-    }
-
-    // MARK: - Content Search Panel
-
-    private var parsedFileTypes: [String] {
-        fileTypeFilter
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-    }
-
-    private func runContentSearch() {
-        let query = contentSearchQuery.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return }
-        ripgrepSearch.search(
-            query: query,
-            in: localCurrentDirectory,
-            recursive: isRecursiveSearch,
-            fileTypes: parsedFileTypes,
-            securityScopedURL: activeSecurityScopedURL
-        )
-    }
-
-    private func navigateToResult(_ result: RipgrepResult) {
-        navigateTo(result.directoryURL)
-        highlightFileName = result.fileName
-    }
-
-    private var contentSearchPanel: some View {
-        VStack(alignment: .leading, spacing: RD.Spacing.sm) {
-            HStack(spacing: RD.Spacing.sm) {
-                HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    TextField("Search file contents\u{2026}", text: $contentSearchQuery)
-                        .textFieldStyle(.plain)
-                        .font(.caption)
-                        .onSubmit { runContentSearch() }
-                }
-                .padding(.horizontal, RD.Spacing.sm)
-                .padding(.vertical, 5)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
-                .overlay(
-                    RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                )
-
-                if ripgrepSearch.isSearching {
-                    Button { ripgrepSearch.cancel() } label: {
-                        Image(systemName: "stop.fill")
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Cancel search")
-                    .accessibilityLabel("Cancel search")
-                } else {
-                    Button { runContentSearch() } label: {
-                        Image(systemName: "play.fill")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Run search")
-                    .accessibilityLabel("Run search")
-                }
-            }
-
-            HStack(spacing: RD.Spacing.md) {
-                Toggle("Recursive", isOn: $isRecursiveSearch)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-
-                HStack(spacing: RD.Spacing.xs) {
-                    Text("Types:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("py,swift,md", text: $fileTypeFilter)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 120)
-                        .font(.caption)
-                }
-            }
-
-            HStack(spacing: RD.Spacing.md) {
-                HStack(spacing: RD.Spacing.xs) {
-                    Text("Max results:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("100", value: $ripgrepSearch.maxCount, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 56)
-                        .font(.caption)
-                        .monospacedDigit()
-                }
-
-                HStack(spacing: RD.Spacing.xs) {
-                    Text("Max line length:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("200", value: $ripgrepSearch.maxColumns, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 56)
-                        .font(.caption)
-                        .monospacedDigit()
-                }
-            }
-
-            if let error = ripgrepSearch.errorMessage {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            if ripgrepSearch.isSearching {
-                HStack(spacing: RD.Spacing.sm) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Searching\u{2026}")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else if ripgrepSearch.searchCompleted && ripgrepSearch.results.isEmpty {
-                Text("No results found")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !ripgrepSearch.results.isEmpty {
-                StatusBadge(
-                    text: "\(ripgrepSearch.resultCount) match\(ripgrepSearch.resultCount == 1 ? "" : "es")",
-                    color: .riverPrimary
-                )
-
-                List(ripgrepSearch.results) { result in
-                    Button { navigateToResult(result) } label: {
-                        HStack(spacing: RD.Spacing.sm) {
-                            FileIconView(filename: result.fileName, isDirectory: false, size: 12)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(ripgrepSearch.relativePath(for: result))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                HStack(spacing: RD.Spacing.xs) {
-                                    Text("L\(result.lineNumber)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                        .monospacedDigit()
-                                    Text(result.content)
-                                        .font(.caption)
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-                .listStyle(.inset)
-                .frame(maxHeight: 200)
-            }
-        }
-        .padding(.horizontal, RD.Spacing.md)
-        .padding(.vertical, RD.Spacing.sm)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
     }
 
     // MARK: - File List
@@ -557,7 +222,9 @@ struct LocalBrowserView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onKeyPress(.return) {
             guard !selectedIDs.isEmpty else { return .ignored }
-            openSelectedFiles()
+            for file in selectedFiles {
+                LocalFileOperations.openFile(file) { navigateTo($0) }
+            }
             return .handled
         }
         .onKeyPress(.delete) {
@@ -599,7 +266,7 @@ struct LocalBrowserView: View {
                 NSWorkspace.shared.open(file.url)
             }
             Button("Copy Path") {
-                copyItemPath(file)
+                LocalFileOperations.copyItemPath(file)
             }
             Divider()
             Button("Rename\u{2026}") {
@@ -608,7 +275,11 @@ struct LocalBrowserView: View {
                 showRenameAlert = true
             }
             Button("Move to Trash") {
-                moveToTrash(file)
+                if let err = LocalFileOperations.moveToTrash(file) {
+                    sftpService.errorMessage = err
+                }
+                selectedIDs.remove(file.id)
+                loadDirectory()
             }
         }
     }
@@ -675,7 +346,7 @@ struct LocalBrowserView: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
-            openFile(file)
+            LocalFileOperations.openFile(file) { navigateTo($0) }
         }
         .onTapGesture(count: 1) {
             highlightFileName = nil
@@ -690,13 +361,19 @@ struct LocalBrowserView: View {
             }
         }
         .contextMenu {
-            Button("Open") { openFile(file) }
+            Button("Open") { LocalFileOperations.openFile(file) { navigateTo($0) } }
             openWithMenu(for: file)
             Divider()
-            Button("Show in Finder") { showInFinder(file) }
-            Button("Copy Path") { copyItemPath(file) }
+            Button("Show in Finder") { LocalFileOperations.showInFinder(file) }
+            Button("Copy Path") { LocalFileOperations.copyItemPath(file) }
             Divider()
-            Button("Move to Trash") { moveToTrash(file) }
+            Button("Move to Trash") {
+                if let err = LocalFileOperations.moveToTrash(file) {
+                    sftpService.errorMessage = err
+                }
+                selectedIDs.remove(file.id)
+                loadDirectory()
+            }
             Button("Delete\u{2026}") {
                 itemToDelete = file
                 showDeleteConfirmation = true
@@ -704,41 +381,63 @@ struct LocalBrowserView: View {
         }
     }
 
-    // MARK: - Bookmarks
-
-    private var isCurrentFolderBookmarked: Bool {
-        let path = localCurrentDirectory.path
-        return Self.defaultBookmarks.contains(where: { $0.path == path })
-            || savedBookmarks.contains(where: { $0.path == path })
+    @ViewBuilder
+    private func openWithMenu(for file: LocalFileItem) -> some View {
+        let apps = NSWorkspace.shared.urlsForApplications(toOpen: file.url)
+        if apps.isEmpty {
+            Button("Open With\u{2026}") { LocalFileOperations.openFile(file) { navigateTo($0) } }
+                .disabled(true)
+        } else {
+            Menu("Open With") {
+                ForEach(Array(apps.prefix(15)), id: \.self) { appURL in
+                    Button(appURL.deletingPathExtension().lastPathComponent) {
+                        Task {
+                            let config = NSWorkspace.OpenConfiguration()
+                            _ = try? await NSWorkspace.shared.open(
+                                [file.url], withApplicationAt: appURL, configuration: config
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
+    // MARK: - Bookmarks
+
     private func saveCurrentFolderAsBookmark() {
-        let path = localCurrentDirectory.path
-        let label = localCurrentDirectory.lastPathComponent
-
-        guard !isCurrentFolderBookmarked else { return }
-
-        savedBookmarks.append(SavedBookmark(label: label, path: path))
-        persistBookmarks()
+        BookmarkManager.add(
+            label: localCurrentDirectory.lastPathComponent,
+            path: localCurrentDirectory.path,
+            to: &savedBookmarks
+        )
     }
 
     private func removeBookmark(_ bookmark: SavedBookmark) {
-        savedBookmarks.removeAll { $0 == bookmark }
-        persistBookmarks()
+        BookmarkManager.remove(bookmark, from: &savedBookmarks)
     }
 
-    private func loadSavedBookmarks() {
-        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.savedBookmarks),
-              let decoded = try? JSONDecoder().decode([SavedBookmark].self, from: data)
-        else {
-            return
-        }
-        savedBookmarks = decoded
+    // MARK: - Content Search
+
+    private func runContentSearch() {
+        let query = contentSearchQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return }
+        let types = fileTypeFilter
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        ripgrepSearch.search(
+            query: query,
+            in: localCurrentDirectory,
+            recursive: isRecursiveSearch,
+            fileTypes: types,
+            securityScopedURL: activeSecurityScopedURL
+        )
     }
 
-    private func persistBookmarks() {
-        guard let data = try? JSONEncoder().encode(savedBookmarks) else { return }
-        UserDefaults.standard.set(data, forKey: DefaultsKey.savedBookmarks)
+    private func navigateToResult(_ result: RipgrepResult) {
+        navigateTo(result.directoryURL)
+        highlightFileName = result.fileName
     }
 
     // MARK: - Staging
@@ -963,11 +662,7 @@ struct LocalBrowserView: View {
         }
     }
 
-    // MARK: - Actions
-
-    private var selectedFiles: [LocalFileItem] {
-        files.filter { selectedIDs.contains($0.id) }
-    }
+    // MARK: - Upload / Selection Actions
 
     private func uploadSelected() {
         for file in selectedFiles {
@@ -975,6 +670,17 @@ struct LocalBrowserView: View {
         }
         selectedIDs = []
     }
+
+    private func trashSelectedFiles() {
+        let errors = LocalFileOperations.trashFiles(selectedFiles)
+        for err in errors {
+            sftpService.errorMessage = err
+        }
+        selectedIDs = []
+        loadDirectory()
+    }
+
+    // MARK: - Drop Handling
 
     private func handleLocalDrop(_ providers: [NSItemProvider]) {
         for provider in providers {
@@ -1046,105 +752,5 @@ struct LocalBrowserView: View {
                 }
             }
         }
-    }
-
-    // MARK: - File Operations
-
-    private func openFile(_ file: LocalFileItem) {
-        if file.isDirectory {
-            navigateTo(file.url)
-        } else {
-            NSWorkspace.shared.open(file.url)
-        }
-    }
-
-    private func openSelectedFiles() {
-        for file in selectedFiles {
-            openFile(file)
-        }
-    }
-
-    @ViewBuilder
-    private func openWithMenu(for file: LocalFileItem) -> some View {
-        let apps = NSWorkspace.shared.urlsForApplications(toOpen: file.url)
-        if apps.isEmpty {
-            Button("Open With\u{2026}") { openFile(file) }
-                .disabled(true)
-        } else {
-            Menu("Open With") {
-                ForEach(Array(apps.prefix(15)), id: \.self) { appURL in
-                    Button(appURL.deletingPathExtension().lastPathComponent) {
-                        Task {
-                            let config = NSWorkspace.OpenConfiguration()
-                            _ = try? await NSWorkspace.shared.open(
-                                [file.url], withApplicationAt: appURL, configuration: config
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func showInFinder(_ file: LocalFileItem) {
-        NSWorkspace.shared.activateFileViewerSelecting([file.url])
-    }
-
-    private func copyItemPath(_ file: LocalFileItem) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(file.url.path, forType: .string)
-    }
-
-    private func moveToTrash(_ file: LocalFileItem) {
-        do {
-            try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
-            selectedIDs.remove(file.id)
-            loadDirectory()
-        } catch {
-            sftpService.errorMessage = "Move to Trash failed for \(file.filename): \(error.localizedDescription). Suggested fix: check file permissions."
-        }
-    }
-
-    private func trashSelectedFiles() {
-        for file in selectedFiles {
-            do {
-                try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
-            } catch {
-                sftpService.errorMessage = "Move to Trash failed for \(file.filename): \(error.localizedDescription). Suggested fix: check file permissions."
-            }
-        }
-        selectedIDs = []
-        loadDirectory()
-    }
-
-    private func permanentlyDelete(_ file: LocalFileItem) {
-        do {
-            try FileManager.default.removeItem(at: file.url)
-            selectedIDs.remove(file.id)
-            loadDirectory()
-        } catch {
-            sftpService.errorMessage = "Delete failed for \(file.filename): \(error.localizedDescription). Suggested fix: check file permissions."
-        }
-    }
-
-    private func performRename(_ file: LocalFileItem) {
-        let trimmed = renameText.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, trimmed != file.filename else { return }
-        let newURL = file.url.deletingLastPathComponent().appendingPathComponent(trimmed)
-        do {
-            try FileManager.default.moveItem(at: file.url, to: newURL)
-            loadDirectory()
-        } catch {
-            sftpService.errorMessage = "Rename failed for \(file.filename): \(error.localizedDescription). Suggested fix: check permissions and ensure name is valid."
-        }
-    }
-
-    // MARK: - Clipboard
-
-    private func copyLocalPathToClipboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(localCurrentDirectory.path, forType: .string)
     }
 }

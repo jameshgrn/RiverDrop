@@ -114,6 +114,39 @@ enum HostKeyKeychainHelper {
             throw KeychainError.unexpectedStatus(operation: "save host key", status: status)
         }
     }
+
+    static func listAll() -> [(host: String, openSSHKey: String)] {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let items = result as? [[String: Any]] else { return [] }
+
+        return items.compactMap { item in
+            guard
+                let account = item[kSecAttrAccount as String] as? String,
+                let data = item[kSecValueData as String] as? Data,
+                let keyString = String(data: data, encoding: .utf8)
+            else { return nil }
+            return (host: account, openSSHKey: keyString)
+        }
+        .sorted { $0.host.localizedCaseInsensitiveCompare($1.host) == .orderedAscending }
+    }
+
+    static func delete(for host: String) {
+        let account = host.lowercased()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
 }
 
 enum KeychainError: LocalizedError {

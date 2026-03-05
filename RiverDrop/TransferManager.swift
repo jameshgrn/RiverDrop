@@ -2,65 +2,12 @@ import AppKit
 import Foundation
 import OSLog
 
-struct TransferItem: Identifiable {
-    let id = UUID()
-    let filename: String
-    let isUpload: Bool
-    let destinationDirectory: String
-    var progress: Double = 0
-    var status: TransferStatus = .inProgress
-
-    enum TransferStatus: String {
-        case inProgress = "Transferring"
-        case completed = "Completed"
-        case failed = "Failed"
-        case skipped = "Skipped"
-        case cancelled = "Cancelled"
-    }
-}
-
-enum ConflictResolution {
-    case replace, rename, cancel
-}
-
 private let transferLogger = Logger(subsystem: "com.riverdrop.app", category: "transfer")
-
-private actor TransferThrottle {
-    private let maxConcurrent: Int
-    private var running = 0
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    init(maxConcurrent: Int) {
-        self.maxConcurrent = maxConcurrent
-    }
-
-    func acquire() async {
-        if running < maxConcurrent {
-            running += 1
-            return
-        }
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
-        }
-    }
-
-    func release() {
-        if let waiter = waiters.first {
-            waiters.removeFirst()
-            waiter.resume()
-        } else {
-            running -= 1
-        }
-    }
-}
 
 @MainActor
 @Observable
 final class TransferManager {
     var transfers: [TransferItem] = []
-    var dryRunResult: DryRunResult?
-    var isRunningDryRun = false
-    var isApplyingSync = false
 
     var onDownloadCompleted: ((String) -> Void)?
 
@@ -70,6 +17,55 @@ final class TransferManager {
     private let transferThrottle = TransferThrottle(maxConcurrent: 4)
     private var remoteRsyncAvailable: Bool?
 
+    private var _syncCoordinator: SyncCoordinator?
+    var syncCoordinator: SyncCoordinator {
+        if let existing = _syncCoordinator { return existing }
+        let coordinator = SyncCoordinator(sftpService: sftpService, transferManager: self)
+        _syncCoordinator = coordinator
+        return coordinator
+    }
+
+    // MARK: - Forwarding Properties (preserve call-site compatibility)
+
+    var dryRunResult: DryRunResult? {
+        get { syncCoordinator.dryRunResult }
+        set { syncCoordinator.dryRunResult = newValue }
+    }
+
+    var isRunningDryRun: Bool {
+        syncCoordinator.isRunningDryRun
+    }
+
+    var isApplyingSync: Bool {
+        syncCoordinator.isApplyingSync
+    }
+
+    // MARK: - Forwarding Methods (preserve call-site compatibility)
+
+    func runDryRunDownload(localDir: URL) async {
+        await syncCoordinator.runDryRunDownload(localDir: localDir)
+    }
+
+    func runDryRunUpload(localDir: URL) async {
+        await syncCoordinator.runDryRunUpload(localDir: localDir)
+    }
+
+    func applySyncDownload(localDir: URL) async throws {
+        try await syncCoordinator.applySyncDownload(localDir: localDir)
+    }
+
+    func applySyncUpload(localDir: URL) async throws {
+        try await syncCoordinator.applySyncUpload(localDir: localDir)
+    }
+
+    func syncDirectory(localDir: URL) {
+        syncCoordinator.syncDirectory(localDir: localDir)
+    }
+
+    func syncUpload(localDir: URL) {
+        syncCoordinator.syncUpload(localDir: localDir)
+    }
+
     private enum RemoteDownloadSource {
         case filename(String)
         case fullPath(String)
@@ -77,6 +73,44 @@ final class TransferManager {
 
     init(sftpService: SFTPService) {
         self.sftpService = sftpService
+    }
+
+    // MARK: - Internal Helpers (used by SyncCoordinator)
+
+    func insertTransfer(_ item: TransferItem) {
+        transfers.insert(item, at: 0)
+    }
+
+    func trackRsync(id: UUID, rsync: RsyncTransfer) {
+        activeRsyncs[id] = rsync
+    }
+
+    func trackTask(id: UUID, task: Task<Void, Never>) {
+        activeTasks[id] = task
+    }
+
+    func setErrorMessage(_ message: String) {
+        sftpService.errorMessage = message
+    }
+
+    func updateProgress(id: UUID, progress: Double) {
+        if let idx = transfers.firstIndex(where: { $0.id == id }) {
+            transfers[idx].progress = progress
+        }
+    }
+
+    func updateStatus(id: UUID, status: TransferItem.TransferStatus) {
+        if let idx = transfers.firstIndex(where: { $0.id == id }) {
+            transfers[idx].status = status
+            if status == .completed {
+                transfers[idx].progress = 1.0
+            }
+        }
+    }
+
+    func cleanupTask(id: UUID) {
+        activeTasks[id] = nil
+        activeRsyncs[id] = nil
     }
 
     // MARK: - Cancel
@@ -203,7 +237,7 @@ final class TransferManager {
                     cleanupTask(id: itemID)
                     return
                 } catch {
-                    // rsync failed — fall back to SFTP if it's a file
+                    // rsync failed -- fall back to SFTP if it's a file
                     activeRsyncs[itemID] = nil
                     var isDir = ObjCBool(false)
                     if FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDir), !isDir.boolValue {
@@ -359,7 +393,7 @@ final class TransferManager {
                     cleanupTask(id: itemID)
                     return
                 } catch {
-                    // rsync failed — fall back to SFTP if it's a file
+                    // rsync failed -- fall back to SFTP if it's a file
                     activeRsyncs[itemID] = nil
                     var isDir = ObjCBool(false)
                     if FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDir), !isDir.boolValue {
@@ -597,7 +631,7 @@ final class TransferManager {
                     cleanupTask(id: itemID)
                     return
                 } catch {
-                    // rsync failed — fall back to SFTP
+                    // rsync failed -- fall back to SFTP
                     activeRsyncs[itemID] = nil
                     updateProgress(id: itemID, progress: 0)
                     logTransferFailed(
@@ -696,442 +730,9 @@ final class TransferManager {
         activeTasks[itemID] = task
     }
 
-    // MARK: - Dry Run
-
-    func runDryRunDownload(localDir: URL) async {
-        guard sftpService.isConnected else {
-            sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
-            return
-        }
-        guard RsyncTransfer.isAvailable else {
-            sftpService.errorMessage = "Dry-run failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
-            return
-        }
-        guard let rsyncAuth = resolveRsyncAuth() else {
-            sftpService.errorMessage = "Dry-run failed: no auth credentials available. Suggested fix: reconnect to the server."
-            return
-        }
-
-        isRunningDryRun = true
-        dryRunResult = nil
-
-        let rsync = RsyncTransfer()
-        do {
-            let result = try await rsync.dryRunDownload(
-                remotePath: sftpService.currentPath,
-                localPath: localDir.path,
-                host: sftpService.connectedHost,
-                username: sftpService.connectedUsername,
-                auth: rsyncAuth
-            )
-            dryRunResult = result
-        } catch is CancellationError {
-            // user cancelled, nothing to report
-        } catch {
-            sftpService.errorMessage = "Dry-run preview failed: \(error.localizedDescription). Suggested fix: verify connection and try again."
-        }
-
-        isRunningDryRun = false
-    }
-
-    func runDryRunUpload(localDir: URL) async {
-        guard sftpService.isConnected else {
-            sftpService.errorMessage = "Dry-run failed: not connected to a server. Suggested fix: connect first."
-            return
-        }
-        guard RsyncTransfer.isAvailable else {
-            sftpService.errorMessage = "Dry-run failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
-            return
-        }
-        guard let rsyncAuth = resolveRsyncAuth() else {
-            sftpService.errorMessage = "Dry-run failed: no auth credentials available. Suggested fix: reconnect to the server."
-            return
-        }
-
-        isRunningDryRun = true
-        dryRunResult = nil
-
-        let rsync = RsyncTransfer()
-        do {
-            let result = try await rsync.dryRunUpload(
-                localPath: localDir.path,
-                remotePath: sftpService.currentPath,
-                host: sftpService.connectedHost,
-                username: sftpService.connectedUsername,
-                auth: rsyncAuth
-            )
-            dryRunResult = result
-        } catch is CancellationError {
-            // user cancelled, nothing to report
-        } catch {
-            sftpService.errorMessage = "Dry-run preview failed: \(error.localizedDescription). Suggested fix: verify connection and try again."
-        }
-
-        isRunningDryRun = false
-    }
-
-    // MARK: - Apply Sync (awaitable)
-
-    func applySyncDownload(localDir: URL) async throws {
-        guard sftpService.isConnected else {
-            throw SyncError.notConnected
-        }
-        guard RsyncTransfer.isAvailable else {
-            throw SyncError.rsyncUnavailable
-        }
-        guard let rsyncAuth = resolveRsyncAuth() else {
-            throw SyncError.noAuth
-        }
-
-        isApplyingSync = true
-        defer { isApplyingSync = false }
-
-        let remotePath = sftpService.currentPath
-        let dirName = (remotePath as NSString).lastPathComponent
-        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: false, destinationDirectory: localDir.path)
-        transfers.insert(item, at: 0)
-        let itemID = item.id
-        let host = sftpService.connectedHost
-        let username = sftpService.connectedUsername
-
-        let rsync = RsyncTransfer()
-        activeRsyncs[itemID] = rsync
-        let start = Date()
-        logTransferStart(
-            id: itemID,
-            direction: "download",
-            mode: "rsync-sync-apply",
-            source: remotePath,
-            destination: localDir.path,
-            bytes: 0
-        )
-
-        do {
-            try await rsync.syncDownload(
-                remotePath: remotePath,
-                localPath: localDir.path,
-                host: host,
-                username: username,
-                auth: rsyncAuth
-            ) { [weak self] progress in
-                Task { @MainActor in
-                    self?.updateProgress(id: itemID, progress: progress)
-                }
-            }
-            updateStatus(id: itemID, status: .completed)
-            logTransferCompleted(
-                id: itemID,
-                direction: "download",
-                mode: "rsync-sync-apply",
-                bytes: 0,
-                startedAt: start
-            )
-            dryRunResult = nil
-        } catch is CancellationError {
-            updateStatus(id: itemID, status: .cancelled)
-            logTransferCancelled(
-                id: itemID,
-                direction: "download",
-                mode: "rsync-sync-apply",
-                bytes: 0,
-                startedAt: start
-            )
-            cleanupTask(id: itemID)
-            throw CancellationError()
-        } catch {
-            updateStatus(id: itemID, status: .failed)
-            logTransferFailed(
-                id: itemID,
-                direction: "download",
-                mode: "rsync-sync-apply",
-                bytes: 0,
-                startedAt: start,
-                error: error
-            )
-            cleanupTask(id: itemID)
-            throw error
-        }
-        cleanupTask(id: itemID)
-    }
-
-    func applySyncUpload(localDir: URL) async throws {
-        guard sftpService.isConnected else {
-            throw SyncError.notConnected
-        }
-        guard RsyncTransfer.isAvailable else {
-            throw SyncError.rsyncUnavailable
-        }
-        guard let rsyncAuth = resolveRsyncAuth() else {
-            throw SyncError.noAuth
-        }
-
-        isApplyingSync = true
-        defer { isApplyingSync = false }
-
-        let remotePath = sftpService.currentPath
-        let dirName = localDir.lastPathComponent
-        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: true, destinationDirectory: remotePath)
-        transfers.insert(item, at: 0)
-        let itemID = item.id
-        let host = sftpService.connectedHost
-        let username = sftpService.connectedUsername
-
-        let rsync = RsyncTransfer()
-        activeRsyncs[itemID] = rsync
-        let start = Date()
-        logTransferStart(
-            id: itemID,
-            direction: "upload",
-            mode: "rsync-sync-apply",
-            source: localDir.path,
-            destination: remotePath,
-            bytes: 0
-        )
-
-        do {
-            try await rsync.syncUpload(
-                localPath: localDir.path,
-                remotePath: remotePath,
-                host: host,
-                username: username,
-                auth: rsyncAuth
-            ) { [weak self] progress in
-                Task { @MainActor in
-                    self?.updateProgress(id: itemID, progress: progress)
-                }
-            }
-            updateStatus(id: itemID, status: .completed)
-            logTransferCompleted(
-                id: itemID,
-                direction: "upload",
-                mode: "rsync-sync-apply",
-                bytes: 0,
-                startedAt: start
-            )
-            dryRunResult = nil
-        } catch is CancellationError {
-            updateStatus(id: itemID, status: .cancelled)
-            logTransferCancelled(
-                id: itemID,
-                direction: "upload",
-                mode: "rsync-sync-apply",
-                bytes: 0,
-                startedAt: start
-            )
-            cleanupTask(id: itemID)
-            throw CancellationError()
-        } catch {
-            updateStatus(id: itemID, status: .failed)
-            logTransferFailed(
-                id: itemID,
-                direction: "upload",
-                mode: "rsync-sync-apply",
-                bytes: 0,
-                startedAt: start,
-                error: error
-            )
-            cleanupTask(id: itemID)
-            throw error
-        }
-        cleanupTask(id: itemID)
-    }
-
-    enum SyncError: LocalizedError {
-        case notConnected
-        case rsyncUnavailable
-        case noAuth
-
-        var errorDescription: String? {
-            switch self {
-            case .notConnected:
-                "Sync failed: not connected to a server. Suggested fix: connect first."
-            case .rsyncUnavailable:
-                "Sync failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
-            case .noAuth:
-                "Sync failed: no auth credentials available. Suggested fix: reconnect to the server."
-            }
-        }
-    }
-
-    // MARK: - Directory Sync
-
-    func syncDirectory(localDir: URL) {
-        guard sftpService.isConnected else {
-            sftpService.errorMessage = "Sync failed: not connected to a server. Suggested fix: connect first."
-            return
-        }
-        guard RsyncTransfer.isAvailable else {
-            sftpService.errorMessage = "Sync failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
-            return
-        }
-        guard let rsyncAuth = resolveRsyncAuth() else {
-            sftpService.errorMessage = "Sync failed: no auth credentials available. Suggested fix: reconnect to the server."
-            return
-        }
-
-        let remotePath = sftpService.currentPath
-        let dirName = (remotePath as NSString).lastPathComponent
-        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: false, destinationDirectory: localDir.path)
-        transfers.insert(item, at: 0)
-        let itemID = item.id
-        let host = sftpService.connectedHost
-        let username = sftpService.connectedUsername
-
-        let task = Task {
-            let rsync = RsyncTransfer()
-            activeRsyncs[itemID] = rsync
-            let start = Date()
-            logTransferStart(
-                id: itemID,
-                direction: "download",
-                mode: "rsync-sync",
-                source: remotePath,
-                destination: localDir.path,
-                bytes: 0
-            )
-
-            do {
-                try await rsync.syncDownload(
-                    remotePath: remotePath,
-                    localPath: localDir.path,
-                    host: host,
-                    username: username,
-                    auth: rsyncAuth
-                ) { [weak self] progress in
-                    Task { @MainActor in
-                        self?.updateProgress(id: itemID, progress: progress)
-                    }
-                }
-                updateStatus(id: itemID, status: .completed)
-                logTransferCompleted(
-                    id: itemID,
-                    direction: "download",
-                    mode: "rsync-sync",
-                    bytes: 0,
-                    startedAt: start
-                )
-            } catch is CancellationError {
-                updateStatus(id: itemID, status: .cancelled)
-                logTransferCancelled(
-                    id: itemID,
-                    direction: "download",
-                    mode: "rsync-sync",
-                    bytes: 0,
-                    startedAt: start
-                )
-            } catch {
-                updateStatus(id: itemID, status: .failed)
-                sftpService.errorMessage = transferFailureMessage(
-                    operation: "directory sync",
-                    source: remotePath,
-                    destination: localDir.path,
-                    error: error,
-                    suggestedFix: "verify connection and try again"
-                )
-                logTransferFailed(
-                    id: itemID,
-                    direction: "download",
-                    mode: "rsync-sync",
-                    bytes: 0,
-                    startedAt: start,
-                    error: error
-                )
-            }
-            cleanupTask(id: itemID)
-        }
-        activeTasks[itemID] = task
-    }
-
-    func syncUpload(localDir: URL) {
-        guard sftpService.isConnected else {
-            sftpService.errorMessage = "Sync failed: not connected to a server. Suggested fix: connect first."
-            return
-        }
-        guard RsyncTransfer.isAvailable else {
-            sftpService.errorMessage = "Sync failed: rsync is not installed. Suggested fix: install rsync via Homebrew."
-            return
-        }
-        guard let rsyncAuth = resolveRsyncAuth() else {
-            sftpService.errorMessage = "Sync failed: no auth credentials available. Suggested fix: reconnect to the server."
-            return
-        }
-
-        let remotePath = sftpService.currentPath
-        let dirName = localDir.lastPathComponent
-        let item = TransferItem(filename: "Sync: \(dirName)", isUpload: true, destinationDirectory: remotePath)
-        transfers.insert(item, at: 0)
-        let itemID = item.id
-        let host = sftpService.connectedHost
-        let username = sftpService.connectedUsername
-
-        let task = Task {
-            let rsync = RsyncTransfer()
-            activeRsyncs[itemID] = rsync
-            let start = Date()
-            logTransferStart(
-                id: itemID,
-                direction: "upload",
-                mode: "rsync-sync",
-                source: localDir.path,
-                destination: remotePath,
-                bytes: 0
-            )
-
-            do {
-                try await rsync.syncUpload(
-                    localPath: localDir.path,
-                    remotePath: remotePath,
-                    host: host,
-                    username: username,
-                    auth: rsyncAuth
-                ) { [weak self] progress in
-                    Task { @MainActor in
-                        self?.updateProgress(id: itemID, progress: progress)
-                    }
-                }
-                updateStatus(id: itemID, status: .completed)
-                logTransferCompleted(
-                    id: itemID,
-                    direction: "upload",
-                    mode: "rsync-sync",
-                    bytes: 0,
-                    startedAt: start
-                )
-            } catch is CancellationError {
-                updateStatus(id: itemID, status: .cancelled)
-                logTransferCancelled(
-                    id: itemID,
-                    direction: "upload",
-                    mode: "rsync-sync",
-                    bytes: 0,
-                    startedAt: start
-                )
-            } catch {
-                updateStatus(id: itemID, status: .failed)
-                sftpService.errorMessage = transferFailureMessage(
-                    operation: "directory sync upload",
-                    source: localDir.path,
-                    destination: remotePath,
-                    error: error,
-                    suggestedFix: "verify connection and try again"
-                )
-                logTransferFailed(
-                    id: itemID,
-                    direction: "upload",
-                    mode: "rsync-sync",
-                    bytes: 0,
-                    startedAt: start,
-                    error: error
-                )
-            }
-            cleanupTask(id: itemID)
-        }
-        activeTasks[itemID] = task
-    }
-
     // MARK: - Rsync Helpers
 
-    private func resolveRsyncAuth() -> RsyncAuth? {
+    func resolveRsyncAuth() -> RsyncAuth? {
         switch sftpService.connectedAuthConfig {
         case let .password(password):
             return .password(password)
@@ -1170,11 +771,6 @@ final class TransferManager {
     private func localFileSize(at url: URL) -> UInt64 {
         let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
         return (attrs?[.size] as? UInt64) ?? 0
-    }
-
-    private func cleanupTask(id: UUID) {
-        activeTasks[id] = nil
-        activeRsyncs[id] = nil
     }
 
     // MARK: - Conflict Resolution
@@ -1235,22 +831,7 @@ final class TransferManager {
         return candidate
     }
 
-    // MARK: - Progress
-
-    private func updateProgress(id: UUID, progress: Double) {
-        if let idx = transfers.firstIndex(where: { $0.id == id }) {
-            transfers[idx].progress = progress
-        }
-    }
-
-    private func updateStatus(id: UUID, status: TransferItem.TransferStatus) {
-        if let idx = transfers.firstIndex(where: { $0.id == id }) {
-            transfers[idx].status = status
-            if status == .completed {
-                transfers[idx].progress = 1.0
-            }
-        }
-    }
+    // MARK: - Progress Helpers
 
     private func recordSkippedTransfer(filename: String, isUpload: Bool) {
         var item = TransferItem(filename: filename, isUpload: isUpload, destinationDirectory: "")
