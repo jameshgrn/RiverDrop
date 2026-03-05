@@ -21,8 +21,9 @@ targets:
       - package: Citadel
     settings:
       base:
-        CODE_SIGN_ENTITLEMENTS: RiverDrop/RiverDrop.entitlements
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: XXXXXXXXXX # Replace with your Team ID
+        ENABLE_HARDENED_RUNTIME: YES
         SWIFT_VERSION: "5.10"
         PRODUCT_BUNDLE_IDENTIFIER: com.riverdrop.app
         MACOSX_DEPLOYMENT_TARGET: "14.0"
