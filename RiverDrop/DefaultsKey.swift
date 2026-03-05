@@ -16,4 +16,5 @@ enum DefaultsKey {
     static let savedBookmarks = "savedBookmarks"
     static let sshKeyBookmarks = "sshKeyBookmarks"
     static let enableKerberosRenewal = "enableKerberosRenewal"
+    static let manualServers = "manualServers"
 }

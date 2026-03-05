@@ -5,15 +5,18 @@ import NIOConcurrencyHelpers
 import NIOSSH
 
 @MainActor
-final class SFTPService: ObservableObject {
-    @Published var isConnected = false
-    @Published var connectedUsername = ""
-    @Published var connectedHost = ""
-    @Published var homePath = ""
-    @Published var currentPath = ""
-    @Published var files: [RemoteFileItem] = []
-    @Published var errorMessage: String?
+@Observable
+final class SFTPService {
+    var isConnected = false
+    var connectedUsername = ""
+    var connectedHost = ""
+    var homePath = ""
+    var currentPath = ""
+    var files: [RemoteFileItem] = []
+    var errorMessage: String?
     private(set) var connectedAuthConfig: SSHAuthConfig?
+    private var connectedProxyJump: String?
+    private var connectedPort = 22
 
     var connectionMethodLabel: String {
         isConnected ? "SFTP" : "Disconnected"
@@ -39,6 +42,14 @@ final class SFTPService: ObservableObject {
 
     func connect(host: String, username: String, keyPath: String, passphrase: String?) async {
         await connect(host: host, username: username, auth: .sshKey(keyPath: keyPath, passphrase: passphrase))
+    }
+
+    func connect(server: ServerEntry, auth: SSHAuthConfig) async {
+        if server.proxyJump != nil {
+            await connectViaProxy(server: server, auth: auth)
+        } else {
+            await connect(host: server.host, username: server.user, auth: auth)
+        }
     }
 
     private func connect(host: String, username: String, auth: SSHAuthConfig) async {
@@ -86,6 +97,56 @@ final class SFTPService: ObservableObject {
         }
     }
 
+    private func connectViaProxy(server: ServerEntry, auth: SSHAuthConfig) async {
+        _ = await runKinitKlog()
+
+        let knownHostKey = HostKeyStore.load(for: server.host)
+        let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
+
+        do {
+            let resolvedHome = try await session.connectViaProxy(
+                host: server.host,
+                port: server.port,
+                proxyJump: server.proxyJump!,
+                username: server.user,
+                auth: auth,
+                hostKeyValidator: .custom(validator)
+            )
+
+            if knownHostKey == nil, let acceptedKey = validator.acceptedOpenSSHKey {
+                HostKeyStore.save(acceptedKey, for: server.host)
+            }
+
+            connectedUsername = server.user
+            connectedHost = server.host
+            connectedAuthConfig = auth
+            connectedProxyJump = server.proxyJump
+            connectedPort = server.port
+            homePath = resolvedHome
+            currentPath = resolvedHome
+            isConnected = true
+            errorMessage = nil
+            await listDirectory()
+            startReconnectionTimer()
+        } catch {
+            isConnected = false
+            connectedUsername = ""
+            connectedHost = ""
+            connectedAuthConfig = nil
+            connectedProxyJump = nil
+            connectedPort = 22
+            homePath = ""
+            currentPath = ""
+            files = []
+            errorMessage = formatError(
+                operation: "connect via proxy",
+                input: "\(server.user)@\(server.host) (via \(server.proxyJump!))",
+                error: error,
+                suggestedFix: "verify bastion host is reachable and credentials are valid for both hops"
+            )
+        }
+    }
+
     func disconnect() async {
         reconnectTask?.cancel()
         reconnectTask = nil
@@ -105,6 +166,8 @@ final class SFTPService: ObservableObject {
         connectedUsername = ""
         connectedHost = ""
         connectedAuthConfig = nil
+        connectedProxyJump = nil
+        connectedPort = 22
         homePath = ""
         files = []
         currentPath = ""
@@ -124,12 +187,23 @@ final class SFTPService: ObservableObject {
             do {
                 let knownHostKey = HostKeyStore.load(for: connectedHost)
                 let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
-                _ = try await session.connect(
-                    host: connectedHost,
-                    username: connectedUsername,
-                    auth: auth,
-                    hostKeyValidator: .custom(validator)
-                )
+                if let proxyJump = connectedProxyJump {
+                    _ = try await session.connectViaProxy(
+                        host: connectedHost,
+                        port: connectedPort,
+                        proxyJump: proxyJump,
+                        username: connectedUsername,
+                        auth: auth,
+                        hostKeyValidator: .custom(validator)
+                    )
+                } else {
+                    _ = try await session.connect(
+                        host: connectedHost,
+                        username: connectedUsername,
+                        auth: auth,
+                        hostKeyValidator: .custom(validator)
+                    )
+                }
                 errorMessage = nil
             } catch {
                 errorMessage = "Re-authentication failed: \(error.localizedDescription). Suggested fix: check your credentials and network connection."
@@ -148,9 +222,6 @@ final class SFTPService: ObservableObject {
         }
     }
 
-    #if APP_STORE
-    private func runKinitKlog() async -> Bool { false }
-    #else
     /// Runs kinit and klog locally to refresh credentials for academic/HPC users.
     /// Gated behind the "enableKerberosRenewal" preference (default: off).
     private func runKinitKlog() async -> Bool {
@@ -189,7 +260,6 @@ final class SFTPService: ObservableObject {
             }
         }
     }
-    #endif
 
     func listDirectory() async {
         guard !currentPath.isEmpty else {
@@ -242,17 +312,22 @@ final class SFTPService: ObservableObject {
         try await session.executeCommand(command, mergeStreams: mergeStreams)
     }
 
+    func statFile(atPath path: String) async throws -> UInt64 {
+        try await session.statFile(atPath: path)
+    }
+
     func uploadFile(
         localURL: URL,
         to destinationPath: String,
+        resumeOffset: UInt64 = 0,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
         let remotePath = destinationPath.hasSuffix("/")
             ? destinationPath + localURL.lastPathComponent
             : destinationPath + "/" + localURL.lastPathComponent
 
-        try await session.uploadFile(localURL: localURL, remotePath: remotePath, progressHandler: progressHandler)
-        
+        try await session.uploadFile(localURL: localURL, remotePath: remotePath, resumeOffset: resumeOffset, progressHandler: progressHandler)
+
         if currentPath == destinationPath {
             await listDirectory()
         }
@@ -261,10 +336,11 @@ final class SFTPService: ObservableObject {
     func uploadFileToPath(
         localURL: URL,
         remotePath: String,
+        resumeOffset: UInt64 = 0,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
-        try await session.uploadFile(localURL: localURL, remotePath: remotePath, progressHandler: progressHandler)
-        
+        try await session.uploadFile(localURL: localURL, remotePath: remotePath, resumeOffset: resumeOffset, progressHandler: progressHandler)
+
         let destinationDir = (remotePath as NSString).deletingLastPathComponent
         if currentPath == destinationDir || currentPath == remotePath {
             await listDirectory()
@@ -275,6 +351,7 @@ final class SFTPService: ObservableObject {
         remoteFilename: String,
         to localURL: URL,
         size: UInt64,
+        resumeOffset: UInt64 = 0,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
         let remotePath = currentPath.hasSuffix("/")
@@ -285,6 +362,7 @@ final class SFTPService: ObservableObject {
             remotePath: remotePath,
             to: localURL,
             size: size,
+            resumeOffset: resumeOffset,
             progressHandler: progressHandler
         )
     }
@@ -293,12 +371,14 @@ final class SFTPService: ObservableObject {
         remotePath: String,
         to localURL: URL,
         size: UInt64,
+        resumeOffset: UInt64 = 0,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
         try await session.downloadFile(
             remotePath: remotePath,
             to: localURL,
             size: size,
+            resumeOffset: resumeOffset,
             progressHandler: progressHandler
         )
     }
@@ -311,6 +391,7 @@ final class SFTPService: ObservableObject {
 private actor SFTPSession {
     private var sshClient: SSHClient?
     private var sftpClient: SFTPClient?
+    private var bastionClient: SSHClient?
 
     func connect(
         host: String,
@@ -346,6 +427,96 @@ private actor SFTPSession {
         return resolvedHome
     }
 
+    func connectViaProxy(
+        host: String,
+        port: Int,
+        proxyJump: String,
+        username: String,
+        auth: SSHAuthConfig,
+        hostKeyValidator: SSHHostKeyValidator
+    ) async throws -> String {
+        let parsed = Self.parseProxyJump(proxyJump, defaultUser: username)
+
+        let bastionAuth: SSHAuthenticationMethod
+        switch auth {
+        case let .password(password):
+            bastionAuth = .passwordBased(username: parsed.user, password: password)
+        case let .sshKey(keyPath, passphrase):
+            bastionAuth = try SSHKeyManager.buildAuthMethod(
+                keyPath: keyPath,
+                username: parsed.user,
+                passphrase: passphrase
+            )
+        }
+
+        let bastionHostKey = HostKeyStore.load(for: parsed.host)
+        let bastionValidator = TOFUHostKeyValidator(expectedOpenSSHKey: bastionHostKey)
+
+        let bastion = try await SSHClient.connect(
+            host: parsed.host,
+            port: parsed.port,
+            authenticationMethod: bastionAuth,
+            hostKeyValidator: .custom(bastionValidator),
+            reconnect: .never
+        )
+
+        if bastionHostKey == nil, let acceptedKey = bastionValidator.acceptedOpenSSHKey {
+            HostKeyStore.save(acceptedKey, for: parsed.host)
+        }
+
+        let targetAuth: SSHAuthenticationMethod
+        switch auth {
+        case let .password(password):
+            targetAuth = .passwordBased(username: username, password: password)
+        case let .sshKey(keyPath, passphrase):
+            targetAuth = try SSHKeyManager.buildAuthMethod(
+                keyPath: keyPath,
+                username: username,
+                passphrase: passphrase
+            )
+        }
+
+        let targetSettings = SSHClientSettings(
+            host: host,
+            port: port,
+            authenticationMethod: { targetAuth },
+            hostKeyValidator: hostKeyValidator
+        )
+
+        let client = try await bastion.jump(to: targetSettings)
+        let sftp = try await client.openSFTP()
+        let resolvedHome = try await sftp.getRealPath(atPath: ".")
+
+        bastionClient = bastion
+        sshClient = client
+        sftpClient = sftp
+
+        return resolvedHome
+    }
+
+    private static func parseProxyJump(
+        _ value: String,
+        defaultUser: String
+    ) -> (user: String, host: String, port: Int) {
+        var user = defaultUser
+        var host = value
+        var port = 22
+
+        if let atIndex = host.firstIndex(of: "@") {
+            user = String(host[host.startIndex ..< atIndex])
+            host = String(host[host.index(after: atIndex)...])
+        }
+
+        if let colonIndex = host.lastIndex(of: ":"),
+           let parsedPort = Int(String(host[host.index(after: colonIndex)...]))
+        {
+            port = parsedPort
+            host = String(host[host.startIndex ..< colonIndex])
+        }
+
+        return (user, host, port)
+    }
+
     func disconnect() async throws {
         var firstError: Error?
 
@@ -365,8 +536,17 @@ private actor SFTPSession {
             }
         }
 
+        if let bastionClient {
+            do {
+                try await bastionClient.close()
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+
         self.sftpClient = nil
         self.sshClient = nil
+        self.bastionClient = nil
 
         if let firstError {
             throw firstError
@@ -408,9 +588,16 @@ private actor SFTPSession {
         return buffer.readString(length: buffer.readableBytes) ?? ""
     }
 
+    func statFile(atPath path: String) async throws -> UInt64 {
+        guard let sftp = sftpClient else { throw SFTPError.notConnected }
+        let attrs = try await sftp.getAttributes(at: path)
+        return attrs.size ?? 0
+    }
+
     func uploadFile(
         localURL: URL,
         remotePath: String,
+        resumeOffset: UInt64 = 0,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
         guard let sftp = sftpClient else { throw SFTPError.notConnected }
@@ -421,8 +608,15 @@ private actor SFTPSession {
         let attrs = try FileManager.default.attributesOfItem(atPath: localURL.path)
         let totalSize = (attrs[.size] as? UInt64) ?? 0
 
-        try await sftp.withFile(filePath: remotePath, flags: [.write, .create, .truncate]) { remoteFile in
-            var offset: UInt64 = 0
+        if resumeOffset > 0 {
+            try fileHandle.seek(toOffset: resumeOffset)
+        }
+
+        try await sftp.withFile(
+            filePath: remotePath,
+            flags: resumeOffset > 0 ? [.write, .create] : [.write, .create, .truncate]
+        ) { remoteFile in
+            var offset = resumeOffset
             let chunkSize = 4_194_304 // 4 MB
             var lastReportedProgress = -1.0
 
@@ -449,19 +643,26 @@ private actor SFTPSession {
         remotePath: String,
         to localURL: URL,
         size: UInt64,
+        resumeOffset: UInt64 = 0,
         progressHandler: @Sendable @escaping (Double) -> Void
     ) async throws {
         guard let sftp = sftpClient else { throw SFTPError.notConnected }
 
-        if !FileManager.default.createFile(atPath: localURL.path, contents: nil) {
-            throw SFTPError.localFileCreateFailed(path: localURL.path)
+        if resumeOffset == 0 {
+            if !FileManager.default.createFile(atPath: localURL.path, contents: nil) {
+                throw SFTPError.localFileCreateFailed(path: localURL.path)
+            }
         }
 
         let fileHandle = try FileHandle(forWritingTo: localURL)
         defer { try? fileHandle.close() }
 
+        if resumeOffset > 0 {
+            try fileHandle.seek(toOffset: resumeOffset)
+        }
+
         try await sftp.withFile(filePath: remotePath, flags: .read) { remoteFile in
-            var offset: UInt64 = 0
+            var offset = resumeOffset
             let chunkSize: UInt32 = 4_194_304 // 4 MB
             var lastReportedProgress = -1.0
 

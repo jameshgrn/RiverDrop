@@ -132,8 +132,8 @@ private struct StagedChipView: View {
 }
 
 struct MainView: View {
-    @EnvironmentObject var sftpService: SFTPService
-    @EnvironmentObject var transferManager: TransferManager
+    @Environment(SFTPService.self) var sftpService
+    @Environment(TransferManager.self) var transferManager
     @State private var remoteSelectedIDs: Set<RemoteFileItem.ID> = []
     @AppStorage(DefaultsKey.defaultLocalDirectory) private var defaultLocalDirectory = ""
     @State private var localCurrentDirectory = URL(fileURLWithPath: "/Users/\(NSUserName())/projects")
@@ -230,6 +230,7 @@ struct MainView: View {
             }
             remoteDisplayLimit = 200
         }
+        .focusedSceneValue(\.selectedRemotePaths, selectedRemotePaths)
     }
 
     // MARK: - Remote Browser
@@ -757,6 +758,17 @@ struct MainView: View {
             .padding(.vertical, 3)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Copy Remote Path") {
+                copyToClipboard(fullRemotePath(for: file.filename))
+            }
+            Button("Copy SCP Command") {
+                copyToClipboard("scp -r \(sftpService.connectedUsername)@\(sftpService.connectedHost):\(fullRemotePath(for: file.filename)) .")
+            }
+            Button("Copy Rsync Command") {
+                copyToClipboard("rsync -avz \(sftpService.connectedUsername)@\(sftpService.connectedHost):\(fullRemotePath(for: file.filename)) .")
+            }
+        }
     }
 
     private func remoteFileRow(_ file: RemoteFileItem) -> some View {
@@ -809,6 +821,24 @@ struct MainView: View {
                 }
             } else {
                 remoteSelectedIDs = isSelected ? [] : [file.id]
+            }
+        }
+        .contextMenu {
+            Button("Copy Remote Path") {
+                copyToClipboard(fullRemotePath(for: file.filename))
+            }
+            Button("Copy SCP Command") {
+                copyToClipboard("scp \(sftpService.connectedUsername)@\(sftpService.connectedHost):\(fullRemotePath(for: file.filename)) .")
+            }
+            Button("Copy Rsync Command") {
+                copyToClipboard("rsync -avz \(sftpService.connectedUsername)@\(sftpService.connectedHost):\(fullRemotePath(for: file.filename)) .")
+            }
+            Button("Copy SFTP URI") {
+                copyToClipboard("sftp://\(sftpService.connectedUsername)@\(sftpService.connectedHost)\(fullRemotePath(for: file.filename))")
+            }
+            Divider()
+            Button("Stage for Download") {
+                stageFile(file)
             }
         }
     }
@@ -1279,8 +1309,24 @@ struct MainView: View {
     // MARK: - Clipboard
 
     private func copyRemotePathToClipboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(sftpService.currentPath, forType: .string)
+        copyToClipboard(sftpService.currentPath)
+    }
+
+    private func copyToClipboard(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+    }
+
+    private var selectedRemotePaths: [String] {
+        selectedRemoteFiles.map { fullRemotePath(for: $0.filename) }
+    }
+
+    private func stageFile(_ file: RemoteFileItem) {
+        let remotePath = fullRemotePath(for: file.filename)
+        withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
+            stagedDownloads.append(
+                StagedItem(filename: file.filename, size: file.size, source: .remote(remotePath))
+            )
+        }
     }
 }

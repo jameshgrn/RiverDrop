@@ -2,8 +2,11 @@ import SwiftUI
 
 @main
 struct RiverDropApp: App {
-    @StateObject private var sftpService: SFTPService
-    @StateObject private var transferManager: TransferManager
+    @State private var sftpService: SFTPService
+    @State private var transferManager: TransferManager
+    @State private var serverStore = ServerStore()
+    @State private var selectedServerID: ServerEntry.ID?
+    @FocusedValue(\.selectedRemotePaths) private var selectedRemotePaths
 
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenLocalFiles = false
     @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
@@ -11,21 +14,27 @@ struct RiverDropApp: App {
 
     init() {
         let service = SFTPService()
-        _sftpService = StateObject(wrappedValue: service)
-        _transferManager = StateObject(wrappedValue: TransferManager(sftpService: service))
+        _sftpService = State(initialValue: service)
+        _transferManager = State(initialValue: TransferManager(sftpService: service))
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
+            NavigationSplitView {
+                SidebarView(selectedServerID: $selectedServerID)
+            } detail: {
                 if sftpService.isConnected {
                     MainView()
+                } else if let serverID = selectedServerID,
+                          let server = serverStore.servers.first(where: { $0.id == serverID }) {
+                    ConnectionView(prefill: server)
                 } else {
                     ConnectionView()
                 }
             }
-            .environmentObject(sftpService)
-            .environmentObject(transferManager)
+            .environment(sftpService)
+            .environment(transferManager)
+            .environment(serverStore)
             .frame(minWidth: 800, minHeight: 550)
         }
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -45,6 +54,19 @@ struct RiverDropApp: App {
                 }
                 .keyboardShortcut("d", modifiers: .command)
                 .disabled(!sftpService.isConnected)
+            }
+
+            // Edit menu — Copy Remote Path
+            CommandGroup(after: .pasteboard) {
+                Button("Copy Remote Path") {
+                    if let paths = selectedRemotePaths {
+                        let joined = paths.joined(separator: "\n")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(joined, forType: .string)
+                    }
+                }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .disabled(selectedRemotePaths?.isEmpty ?? true)
             }
 
             // View menu

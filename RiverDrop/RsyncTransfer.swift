@@ -7,42 +7,6 @@ enum RsyncAuth: Sendable {
 
 final class RsyncTransfer: @unchecked Sendable {
 
-    // MARK: - APP_STORE stubs (no Process symbols in MAS binary)
-
-    #if APP_STORE
-
-    static var rsyncPath: String? { nil }
-    static var isAvailable: Bool { false }
-    func cancel() {}
-
-    func upload(localPath: String, remotePath: String, host: String, username: String, auth: RsyncAuth, progressHandler: @escaping @Sendable (Double) -> Void) async throws {
-        throw RsyncError.notInstalled
-    }
-
-    func download(remotePath: String, localPath: String, host: String, username: String, auth: RsyncAuth, progressHandler: @escaping @Sendable (Double) -> Void) async throws {
-        throw RsyncError.notInstalled
-    }
-
-    func syncDownload(remotePath: String, localPath: String, host: String, username: String, auth: RsyncAuth, progressHandler: @escaping @Sendable (Double) -> Void) async throws {
-        throw RsyncError.notInstalled
-    }
-
-    func syncUpload(localPath: String, remotePath: String, host: String, username: String, auth: RsyncAuth, progressHandler: @escaping @Sendable (Double) -> Void) async throws {
-        throw RsyncError.notInstalled
-    }
-
-    func dryRunDownload(remotePath: String, localPath: String, host: String, username: String, auth: RsyncAuth) async throws -> DryRunResult {
-        throw RsyncError.notInstalled
-    }
-
-    func dryRunUpload(localPath: String, remotePath: String, host: String, username: String, auth: RsyncAuth) async throws -> DryRunResult {
-        throw RsyncError.notInstalled
-    }
-
-    #else
-
-    // MARK: - Direct-download build (subprocess spawning)
-
     private var process: Process?
     private let lock = NSLock()
     private var isCancelled = false
@@ -550,11 +514,8 @@ final class RsyncTransfer: @unchecked Sendable {
     private func shellQuote(_ path: String) -> String {
         "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
-
-    #endif
 }
 
-#if !APP_STORE
 /// Thread-safe one-shot flag for ensuring a continuation is resumed exactly once.
 private final class AtomicFlag: @unchecked Sendable {
     private let lock = NSLock()
@@ -569,7 +530,6 @@ private final class AtomicFlag: @unchecked Sendable {
         }
     }
 }
-#endif
 
 enum RsyncError: LocalizedError {
     case notInstalled

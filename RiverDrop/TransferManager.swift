@@ -25,18 +25,50 @@ enum ConflictResolution {
 
 private let transferLogger = Logger(subsystem: "com.riverdrop.app", category: "transfer")
 
+private actor TransferThrottle {
+    private let maxConcurrent: Int
+    private var running = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(maxConcurrent: Int) {
+        self.maxConcurrent = maxConcurrent
+    }
+
+    func acquire() async {
+        if running < maxConcurrent {
+            running += 1
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        if let waiter = waiters.first {
+            waiters.removeFirst()
+            waiter.resume()
+        } else {
+            running -= 1
+        }
+    }
+}
+
 @MainActor
-final class TransferManager: ObservableObject {
-    @Published var transfers: [TransferItem] = []
-    @Published var dryRunResult: DryRunResult?
-    @Published var isRunningDryRun = false
-    @Published var isApplyingSync = false
+@Observable
+final class TransferManager {
+    var transfers: [TransferItem] = []
+    var dryRunResult: DryRunResult?
+    var isRunningDryRun = false
+    var isApplyingSync = false
 
     var onDownloadCompleted: ((String) -> Void)?
 
     private let sftpService: SFTPService
     private var activeTasks: [UUID: Task<Void, Never>] = [:]
     private var activeRsyncs: [UUID: RsyncTransfer] = [:]
+    private let transferThrottle = TransferThrottle(maxConcurrent: 4)
+    private var remoteRsyncAvailable: Bool?
 
     private enum RemoteDownloadSource {
         case filename(String)
@@ -120,6 +152,7 @@ final class TransferManager: ObservableObject {
         let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         let task = Task {
+            var sftpResumeOffset: UInt64 = 0
             if useRsync, let rsyncAuth {
                 let rsync = RsyncTransfer()
                 activeRsyncs[itemID] = rsync
@@ -184,6 +217,11 @@ final class TransferManager: ObservableObject {
                             error: error
                         )
                         transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
+                        do {
+                            sftpResumeOffset = try await sftpService.statFile(atPath: remotePath)
+                        } catch {
+                            sftpResumeOffset = 0
+                        }
                     } else {
                         updateStatus(id: itemID, status: .failed)
                         sftpService.errorMessage = transferFailureMessage(
@@ -200,6 +238,7 @@ final class TransferManager: ObservableObject {
             }
 
             // SFTP path
+            await transferThrottle.acquire()
             let sftpStart = Date()
             logTransferStart(
                 id: itemID,
@@ -210,7 +249,7 @@ final class TransferManager: ObservableObject {
                 bytes: transferSize
             )
             do {
-                try await sftpService.uploadFileToPath(localURL: localURL, remotePath: remotePath) { [weak self] progress in
+                try await sftpService.uploadFileToPath(localURL: localURL, remotePath: remotePath, resumeOffset: sftpResumeOffset) { [weak self] progress in
                     Task { @MainActor in
                         self?.updateProgress(id: itemID, progress: progress)
                     }
@@ -250,6 +289,7 @@ final class TransferManager: ObservableObject {
                     error: error
                 )
             }
+            await transferThrottle.release()
             cleanupTask(id: itemID)
         }
         activeTasks[itemID] = task
@@ -268,6 +308,7 @@ final class TransferManager: ObservableObject {
         let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         let task = Task {
+            var sftpResumeOffset: UInt64 = 0
             if useRsync, let rsyncAuth {
                 let rsync = RsyncTransfer()
                 activeRsyncs[itemID] = rsync
@@ -332,6 +373,11 @@ final class TransferManager: ObservableObject {
                             error: error
                         )
                         transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
+                        do {
+                            sftpResumeOffset = try await sftpService.statFile(atPath: remotePath)
+                        } catch {
+                            sftpResumeOffset = 0
+                        }
                     } else {
                         updateStatus(id: itemID, status: .failed)
                         sftpService.errorMessage = transferFailureMessage(
@@ -348,6 +394,7 @@ final class TransferManager: ObservableObject {
             }
 
             // SFTP path
+            await transferThrottle.acquire()
             let sftpStart = Date()
             logTransferStart(
                 id: itemID,
@@ -358,7 +405,7 @@ final class TransferManager: ObservableObject {
                 bytes: transferSize
             )
             do {
-                try await sftpService.uploadFile(localURL: localURL, to: destinationPath) { [weak self] progress in
+                try await sftpService.uploadFile(localURL: localURL, to: destinationPath, resumeOffset: sftpResumeOffset) { [weak self] progress in
                     Task { @MainActor in
                         self?.updateProgress(id: itemID, progress: progress)
                     }
@@ -398,6 +445,7 @@ final class TransferManager: ObservableObject {
                     error: error
                 )
             }
+            await transferThrottle.release()
             cleanupTask(id: itemID)
         }
         activeTasks[itemID] = task
@@ -498,6 +546,7 @@ final class TransferManager: ObservableObject {
         let useRsync = RsyncTransfer.isAvailable && rsyncAuth != nil
 
         let task = Task {
+            var sftpResumeOffset: UInt64 = 0
             if useRsync, let rsyncAuth {
                 let rsync = RsyncTransfer()
                 activeRsyncs[itemID] = rsync
@@ -560,12 +609,14 @@ final class TransferManager: ObservableObject {
                         error: error
                     )
                     transferLogger.notice("Transfer fallback id=\(itemID.uuidString, privacy: .public) from=rsync to=sftp")
-                    // Clean up partial download
-                    try? FileManager.default.removeItem(at: localURL)
+                    // Check partial download size for SFTP resume
+                    let localAttrs = try? FileManager.default.attributesOfItem(atPath: localURL.path)
+                    sftpResumeOffset = (localAttrs?[.size] as? UInt64) ?? 0
                 }
             }
 
             // SFTP path
+            await transferThrottle.acquire()
             let sftpStart = Date()
             logTransferStart(
                 id: itemID,
@@ -581,7 +632,8 @@ final class TransferManager: ObservableObject {
                     try await sftpService.downloadFile(
                         remoteFilename: remoteFilename,
                         to: localURL,
-                        size: size
+                        size: size,
+                        resumeOffset: sftpResumeOffset
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
@@ -591,7 +643,8 @@ final class TransferManager: ObservableObject {
                     try await sftpService.downloadFileAtPath(
                         remotePath: remotePath,
                         to: localURL,
-                        size: size
+                        size: size,
+                        resumeOffset: sftpResumeOffset
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
@@ -637,6 +690,7 @@ final class TransferManager: ObservableObject {
                     error: error
                 )
             }
+            await transferThrottle.release()
             cleanupTask(id: itemID)
         }
         activeTasks[itemID] = task
@@ -1085,6 +1139,31 @@ final class TransferManager: ObservableObject {
             return .sshKey(path: keyPath, passphrase: passphrase)
         case nil:
             return nil
+        }
+    }
+
+    private enum TransferEngine {
+        case sftp
+        case rsync
+    }
+
+    private func selectEngine(isDirectory: Bool, fileCount: Int, totalBytes: UInt64, singleFileSize: UInt64) -> TransferEngine {
+        if isDirectory { return .rsync }
+        if fileCount >= 25 || totalBytes >= 20_000_000 { return .rsync }
+        if fileCount == 1 && singleFileSize >= 64_000_000 { return .rsync }
+        return .sftp
+    }
+
+    private func checkRemoteRsync() async -> Bool {
+        if let cached = remoteRsyncAvailable { return cached }
+        do {
+            let output = try await sftpService.executeCommand("command -v rsync")
+            let available = !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            remoteRsyncAvailable = available
+            return available
+        } catch {
+            remoteRsyncAvailable = false
+            return false
         }
     }
 

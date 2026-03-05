@@ -6,7 +6,8 @@ private enum AuthMode: String, CaseIterable {
 }
 
 struct ConnectionView: View {
-    @EnvironmentObject var sftpService: SFTPService
+    @Environment(SFTPService.self) var sftpService
+    var prefill: ServerEntry? = nil
 
     @State private var host = ""
     @State private var username = ""
@@ -365,6 +366,16 @@ struct ConnectionView: View {
     }
 
     private func restoreSavedState() {
+        if let server = prefill {
+            if host.isEmpty { host = server.host }
+            if username.isEmpty { username = server.user }
+            if let keyPath = server.identityFile, sshKeyPath.isEmpty {
+                sshKeyPath = keyPath
+                authMode = .sshKey
+            }
+            return
+        }
+
         let savedHost = UserDefaults.standard.string(forKey: DefaultsKey.lastHost) ?? ""
         let savedUser = UserDefaults.standard.string(forKey: DefaultsKey.lastUsername) ?? ""
 

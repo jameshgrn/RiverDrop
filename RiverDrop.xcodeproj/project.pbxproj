@@ -16,18 +16,23 @@
 		44B72C41527A78280F7DA0A4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */; };
 		4F28F3D1B3DFA5355BDD808F /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */; };
 		502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E55F09D483C9B50F4EB55B /* ConnectionView.swift */; };
+		5182638640D163BBB0E13FA8 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86DCF11AE14212DA57CC1779 /* ServerStore.swift */; };
 		54078D9F193B06AAFA7280E0 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CFF55558285CBA891F0146D /* StoreManager.swift */; };
 		59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E8753DBA408E9165BECC22 /* TransferManager.swift */; };
 		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
 		687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */; };
 		6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92F4E94228FEDA36172E00B /* KeychainHelper.swift */; };
 		79B1FC1D9D1D6A95D3159756 /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B534458F7928E586D46EEA2A /* LocalBrowserView.swift */; };
+		7C907286F5803C86BC9353A6 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCDF3CEBDF7C11B3F16E362 /* SidebarView.swift */; };
 		892BA864188D054CBA8A031C /* SFTPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B074F1E942FFDA1B37584C /* SFTPService.swift */; };
+		92BA66C3498E518FA4502A81 /* ServerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF057F6F4855F6DE9C34679C /* ServerEntry.swift */; };
 		98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 475DC44F97CE166D9CB71385 /* RiverDropApp.swift */; };
 		A3CFF019F901DFA05F00E600 /* RiverDrop.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 809ED4C4ED36643B3F64854F /* RiverDrop.storekit */; };
 		AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */; };
 		AC8FA9A26B97DE0B4379EA6E /* LocalFileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */; };
+		B3F063DFE11EA5C7B52902FD /* AddServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A2517487024C7E0AE8BD03 /* AddServerSheet.swift */; };
 		C60DC17B82A7B0133179D256 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 2B6DAD37A360FA7318560AC2 /* Citadel */; };
+		DA79F739A4B44FD03652A1B6 /* SSHConfigParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C370249694DA68C4E333B514 /* SSHConfigParser.swift */; };
 		E354C4401A478986163776B9 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E53433680D587385A34112 /* DesignSystem.swift */; };
 		E6FCE06170BDCA20193F3B74 /* RipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB90A53412316A0A7C768615 /* RipgrepSearch.swift */; };
 		EADBA403D871C026B52B818E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FD679963557A16BC6D49ED /* SettingsView.swift */; };
@@ -40,6 +45,7 @@
 		178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RiverDrop.entitlements; sourceTree = "<group>"; };
 		19E8753DBA408E9165BECC22 /* TransferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferManager.swift; sourceTree = "<group>"; };
 		1CFF55558285CBA891F0146D /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		3CCDF3CEBDF7C11B3F16E362 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		3F268EE2F1B0C60286617AE1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		43E55F09D483C9B50F4EB55B /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
 		475DC44F97CE166D9CB71385 /* RiverDropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiverDropApp.swift; sourceTree = "<group>"; };
@@ -48,6 +54,7 @@
 		79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
 		7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
 		809ED4C4ED36643B3F64854F /* RiverDrop.storekit */ = {isa = PBXFileReference; path = RiverDrop.storekit; sourceTree = "<group>"; };
+		86DCF11AE14212DA57CC1779 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
 		87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
 		8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		96E53433680D587385A34112 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
@@ -55,11 +62,14 @@
 		B146A2ACB6A8B2AAFC8D4874 /* SSHKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeyManager.swift; sourceTree = "<group>"; };
 		B534458F7928E586D46EEA2A /* LocalBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrowserView.swift; sourceTree = "<group>"; };
 		B5F6482B89B85A190B9B2D92 /* DryRunPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DryRunPreviewView.swift; sourceTree = "<group>"; };
+		C370249694DA68C4E333B514 /* SSHConfigParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConfigParser.swift; sourceTree = "<group>"; };
 		C72136A46D625223BF3D6241 /* DefaultsKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsKey.swift; sourceTree = "<group>"; };
 		C7584E43BAC720FCB206A8B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
+		DF057F6F4855F6DE9C34679C /* ServerEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEntry.swift; sourceTree = "<group>"; };
 		E9FD679963557A16BC6D49ED /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		EB90A53412316A0A7C768615 /* RipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RipgrepSearch.swift; sourceTree = "<group>"; };
+		F5A2517487024C7E0AE8BD03 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
 		F92F4E94228FEDA36172E00B /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -86,6 +96,7 @@
 		BD9941B6E99A010F5621E78E /* RiverDrop */ = {
 			isa = PBXGroup;
 			children = (
+				F5A2517487024C7E0AE8BD03 /* AddServerSheet.swift */,
 				3F268EE2F1B0C60286617AE1 /* Assets.xcassets */,
 				43E55F09D483C9B50F4EB55B /* ConnectionView.swift */,
 				C72136A46D625223BF3D6241 /* DefaultsKey.swift */,
@@ -106,8 +117,12 @@
 				809ED4C4ED36643B3F64854F /* RiverDrop.storekit */,
 				475DC44F97CE166D9CB71385 /* RiverDropApp.swift */,
 				79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */,
+				DF057F6F4855F6DE9C34679C /* ServerEntry.swift */,
+				86DCF11AE14212DA57CC1779 /* ServerStore.swift */,
 				E9FD679963557A16BC6D49ED /* SettingsView.swift */,
 				12B074F1E942FFDA1B37584C /* SFTPService.swift */,
+				3CCDF3CEBDF7C11B3F16E362 /* SidebarView.swift */,
+				C370249694DA68C4E333B514 /* SSHConfigParser.swift */,
 				B146A2ACB6A8B2AAFC8D4874 /* SSHKeyManager.swift */,
 				1CFF55558285CBA891F0146D /* StoreManager.swift */,
 				19E8753DBA408E9165BECC22 /* TransferManager.swift */,
@@ -200,6 +215,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B3F063DFE11EA5C7B52902FD /* AddServerSheet.swift in Sources */,
 				502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */,
 				12B5AF4F0F0C5833DA2A7F40 /* DefaultsKey.swift in Sources */,
 				E354C4401A478986163776B9 /* DesignSystem.swift in Sources */,
@@ -217,8 +233,12 @@
 				98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */,
 				2CCD926E9A53A04B41ECED7A /* RsyncTransfer.swift in Sources */,
 				892BA864188D054CBA8A031C /* SFTPService.swift in Sources */,
+				DA79F739A4B44FD03652A1B6 /* SSHConfigParser.swift in Sources */,
 				F23FBC40991E57D4B9885BCE /* SSHKeyManager.swift in Sources */,
+				92BA66C3498E518FA4502A81 /* ServerEntry.swift in Sources */,
+				5182638640D163BBB0E13FA8 /* ServerStore.swift in Sources */,
 				EADBA403D871C026B52B818E /* SettingsView.swift in Sources */,
+				7C907286F5803C86BC9353A6 /* SidebarView.swift in Sources */,
 				54078D9F193B06AAFA7280E0 /* StoreManager.swift in Sources */,
 				59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */,
 			);

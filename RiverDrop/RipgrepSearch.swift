@@ -66,31 +66,6 @@ final class RipgrepSearch: ObservableObject {
     @Published var maxCount: Int = 100
     @Published var maxColumns: Int = 200
 
-    // MARK: - APP_STORE stubs (no Process symbols in MAS binary)
-
-    #if APP_STORE
-
-    static var rgPath: String? { nil }
-    static var isAvailable: Bool { false }
-
-    func search(
-        query: String,
-        in directory: URL,
-        recursive: Bool = true,
-        fileTypes: [String] = [],
-        securityScopedURL: URL? = nil
-    ) {
-        errorMessage = "Content search is not available in this build"
-    }
-
-    func cancel() {}
-
-    func relativePath(for result: RipgrepResult) -> String { result.filePath }
-
-    #else
-
-    // MARK: - Direct-download build (subprocess spawning)
-
     private var process: Process?
     private var accessedURL: URL?
     private var currentSearchToken: UUID?
@@ -245,6 +220,4 @@ final class RipgrepSearch: ObservableObject {
             accessedURL = nil
         }
     }
-
-    #endif
 }

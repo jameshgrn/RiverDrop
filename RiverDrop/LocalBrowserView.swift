@@ -7,8 +7,8 @@ private struct SavedBookmark: Codable, Equatable {
 }
 
 struct LocalBrowserView: View {
-    @EnvironmentObject var transferManager: TransferManager
-    @EnvironmentObject var sftpService: SFTPService
+    @Environment(TransferManager.self) var transferManager
+    @Environment(SFTPService.self) var sftpService
     @Binding var localCurrentDirectory: URL
     @Binding var recentlyDownloaded: Set<String>
     @Binding var showDryRunPreview: Bool
