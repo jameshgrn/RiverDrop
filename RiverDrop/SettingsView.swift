@@ -22,6 +22,7 @@ private struct GeneralSettingsTab: View {
     @AppStorage(DefaultsKey.defaultLocalDirectory) private var defaultLocalDirectory = ""
     @AppStorage(DefaultsKey.defaultPort) private var defaultPort = 22
     @AppStorage(DefaultsKey.rememberCredentials) private var rememberCredentials = true
+    @AppStorage(DefaultsKey.enableKerberosRenewal) private var enableKerberosRenewal = false
 
     var body: some View {
         Form {
@@ -44,6 +45,11 @@ private struct GeneralSettingsTab: View {
             Stepper("Default SSH port: \(defaultPort)", value: $defaultPort, in: 1...65535)
 
             Toggle("Remember credentials", isOn: $rememberCredentials)
+
+            Divider()
+
+            Toggle("Renew Kerberos/AFS on connect", isOn: $enableKerberosRenewal)
+                .help("Runs kinit -R and klog before each connection. Enable for HPC/university clusters that use Kerberos authentication.")
         }
         .padding()
     }

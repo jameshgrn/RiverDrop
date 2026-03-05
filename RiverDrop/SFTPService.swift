@@ -152,7 +152,12 @@ final class SFTPService: ObservableObject {
     private func runKinitKlog() async -> Bool { false }
     #else
     /// Runs kinit and klog locally to refresh credentials for academic/HPC users.
+    /// Gated behind the "enableKerberosRenewal" preference (default: off).
     private func runKinitKlog() async -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.enableKerberosRenewal) else {
+            return false
+        }
+
         let kinitPath = "/usr/bin/kinit"
         let klogPath = "/usr/bin/klog"
 

@@ -82,26 +82,10 @@ struct RiverDropApp: App {
 
             // Go menu
             CommandMenu("Go") {
-                if FileManager.default.fileExists(atPath: "/Users/\(NSUserName())/projects") {
-                    Button("Projects") {
-                        postNavigateLocalPathCommand("/Users/\(NSUserName())/projects")
-                    }
-                    .keyboardShortcut("1", modifiers: .command)
+                Button("Home") {
+                    postNavigateLocalPathCommand("/Users/\(NSUserName())")
                 }
-
-                if FileManager.default.fileExists(atPath: "/Users/\(NSUserName())") {
-                    Button("Home") {
-                        postNavigateLocalPathCommand("/Users/\(NSUserName())")
-                    }
-                    .keyboardShortcut("2", modifiers: .command)
-                }
-
-                if FileManager.default.fileExists(atPath: "/not_backed_up/\(NSUserName())") {
-                    Button("Cluster Scratch") {
-                        postNavigateLocalPathCommand("/not_backed_up/\(NSUserName())")
-                    }
-                    .keyboardShortcut("3", modifiers: .command)
-                }
+                .keyboardShortcut("1", modifiers: .command)
 
                 Divider()
 
