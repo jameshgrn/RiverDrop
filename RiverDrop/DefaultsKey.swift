@@ -17,4 +17,6 @@ enum DefaultsKey {
     static let sshKeyBookmarks = "sshKeyBookmarks"
     static let enableKerberosRenewal = "enableKerberosRenewal"
     static let manualServers = "manualServers"
+    static let customRsyncPath = "customRsyncPath"
+    static let customRgPath = "customRgPath"
 }

@@ -312,6 +312,10 @@ final class SFTPService {
         try await session.executeCommand(command, mergeStreams: mergeStreams)
     }
 
+    func executeCommandStream(_ command: String) async throws -> AsyncThrowingStream<ExecCommandOutput, Error> {
+        try await session.executeCommandStream(command)
+    }
+
     func statFile(atPath path: String) async throws -> UInt64 {
         try await session.statFile(atPath: path)
     }
@@ -586,6 +590,11 @@ private actor SFTPSession {
         guard let ssh = sshClient else { throw SFTPError.notConnected }
         var buffer = try await ssh.executeCommand(command, mergeStreams: mergeStreams, inShell: true)
         return buffer.readString(length: buffer.readableBytes) ?? ""
+    }
+
+    func executeCommandStream(_ command: String) async throws -> AsyncThrowingStream<ExecCommandOutput, Error> {
+        guard let ssh = sshClient else { throw SFTPError.notConnected }
+        return try await ssh.executeCommandStream(command, inShell: true)
     }
 
     func statFile(atPath path: String) async throws -> UInt64 {

@@ -11,8 +11,11 @@ struct SettingsView: View {
 
             TransferSettingsTab()
                 .tabItem { Label("Transfer", systemImage: "arrow.up.arrow.down") }
+                
+            AdvancedSettingsTab()
+                .tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
         }
-        .frame(width: 420, height: 260)
+        .frame(width: 450, height: 300)
     }
 }
 
@@ -78,6 +81,28 @@ private struct TransferSettingsTab: View {
     var body: some View {
         Form {
             Toggle("Always preview before sync", isOn: $alwaysPreviewBeforeSync)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Advanced
+
+private struct AdvancedSettingsTab: View {
+    @AppStorage(DefaultsKey.customRsyncPath) private var customRsyncPath = ""
+    @AppStorage(DefaultsKey.customRgPath) private var customRgPath = ""
+
+    var body: some View {
+        Form {
+            Section(header: Text("Custom Binaries (Local)")) {
+                TextField("rsync path", text: $customRsyncPath, prompt: Text("/opt/homebrew/bin/rsync"))
+                    .textFieldStyle(.roundedBorder)
+                    .help("Leave blank to use default system path.")
+                
+                TextField("rg (ripgrep) path", text: $customRgPath, prompt: Text("/opt/homebrew/bin/rg"))
+                    .textFieldStyle(.roundedBorder)
+                    .help("Leave blank to use default system path.")
+            }
         }
         .padding()
     }

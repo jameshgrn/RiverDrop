@@ -71,6 +71,9 @@ final class RipgrepSearch: ObservableObject {
     private var currentSearchToken: UUID?
 
     static var rgPath: String? {
+        if let customPath = UserDefaults.standard.string(forKey: DefaultsKey.customRgPath), !customPath.isEmpty, FileManager.default.isExecutableFile(atPath: customPath) {
+            return customPath
+        }
         for path in ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"] {
             if FileManager.default.isExecutableFile(atPath: path) {
                 return path
@@ -178,21 +181,41 @@ final class RipgrepSearch: ObservableObject {
             return
         }
 
-        // Read output on a background thread; stop security-scoped access after drain.
+        // Read output asynchronously and stream results to the UI
         Task.detached { [weak self] in
-            let data = fileHandle.readDataToEndOfFile()
+            let decoder = JSONDecoder()
+            
+            do {
+                for try await line in fileHandle.bytes.lines {
+                    guard let data = line.data(using: .utf8),
+                          let message = try? decoder.decode(RipgrepJSONMessage.self, from: data),
+                          message.type == "match",
+                          let msgData = message.data,
+                          let path = msgData.path?.text,
+                          let lineNumber = msgData.line_number,
+                          let content = msgData.lines?.text else {
+                        continue
+                    }
+                    
+                    let result = RipgrepResult(
+                        filePath: path,
+                        lineNumber: lineNumber,
+                        content: content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
+                    
+                    await MainActor.run { [weak self] in
+                        guard let self = self, self.currentSearchToken == token else { return }
+                        self.results.append(result)
+                        self.resultCount += 1
+                    }
+                }
+            } catch {
+                // Handle read errors if any, but stream will just terminate
+            }
 
             await MainActor.run { [weak self] in
                 guard let self = self, self.currentSearchToken == token else { return }
                 self.stopSecurityScopedAccess()
-            }
-
-            let parsed = parseRipgrepJSON(data)
-
-            await MainActor.run { [weak self] in
-                guard let self = self, self.currentSearchToken == token else { return }
-                self.results = parsed
-                self.resultCount = parsed.count
             }
         }
     }

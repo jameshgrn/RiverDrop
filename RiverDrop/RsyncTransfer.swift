@@ -12,6 +12,9 @@ final class RsyncTransfer: @unchecked Sendable {
     private var isCancelled = false
 
     static var rsyncPath: String? {
+        if let customPath = UserDefaults.standard.string(forKey: DefaultsKey.customRsyncPath), !customPath.isEmpty, FileManager.default.isExecutableFile(atPath: customPath) {
+            return customPath
+        }
         for path in ["/opt/homebrew/bin/rsync", "/usr/local/bin/rsync", "/usr/bin/rsync"] {
             if FileManager.default.isExecutableFile(atPath: path) {
                 return path

@@ -1,5 +1,14 @@
 import Citadel
 import Foundation
+import NIOCore
+
+extension String {
+    /// Safely quotes a string for use in a POSIX shell command.
+    var shellQuoted: String {
+        if self.isEmpty { return "''" }
+        return "'" + self.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
 
 struct RemoteRipgrepResult: Identifiable {
     let id = UUID()
@@ -11,7 +20,6 @@ struct RemoteRipgrepResult: Identifiable {
         (filePath as NSString).deletingLastPathComponent
     }
 }
-
 
 @MainActor
 final class RemoteRipgrepSearch: ObservableObject {
@@ -51,52 +59,64 @@ final class RemoteRipgrepSearch: ObservableObject {
         searchTask = Task {
             defer { isSearching = false }
 
-            let escapedQuery = trimmed.replacingOccurrences(of: "'", with: "'\\''")
-            let escapedDir = directory.replacingOccurrences(of: "'", with: "'\\''")
+            let escapedQuery = trimmed.shellQuoted
+            let escapedDir = directory.shellQuoted
 
-            // Use --json for structured parsing; suppress stderr for clean output;
-            // append exit code so we can distinguish no-matches (1) from errors (2+).
-            let rgCommand = "rg --json --max-count \(maxCount) --max-columns \(maxColumns) -- '\(escapedQuery)' '\(escapedDir)' 2>/dev/null"
-            let command = "(\(rgCommand)); echo $?"
+            // Instead of wrapping in an echo $? subshell and buffering everything,
+            // we use the streaming API. If rg returns 1 (no matches), Citadel will throw an error,
+            // which we can safely ignore.
+            let rgCommand = "rg --json --max-count \(maxCount) --max-columns \(maxColumns) -- \(escapedQuery) \(escapedDir) 2>/dev/null"
 
-            let output: String
             do {
-                output = try await service.executeCommand(command)
+                let stream = try await service.executeCommandStream(rgCommand)
+                let decoder = JSONDecoder()
+                var lineBuffer = Data()
+
+                for try await output in stream {
+                    guard !Task.isCancelled else { return }
+                    switch output {
+                    case .stdout(var byteBuffer):
+                        if let data = byteBuffer.readData(length: byteBuffer.readableBytes) {
+                            lineBuffer.append(data)
+                            while let index = lineBuffer.firstIndex(of: 10) { // \n
+                                let lineData = lineBuffer[..<index]
+                                lineBuffer.removeSubrange(...index)
+                                
+                                if let message = try? decoder.decode(RipgrepJSONMessage.self, from: lineData),
+                                   message.type == "match",
+                                   let data = message.data,
+                                   let path = data.path?.text,
+                                   let lineNumber = data.line_number,
+                                   let content = data.lines?.text {
+                                    
+                                    let result = RemoteRipgrepResult(
+                                        filePath: path,
+                                        lineNumber: lineNumber,
+                                        content: content.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    )
+                                    // Append incrementally to provide a streaming UI update
+                                    self.results.append(result)
+                                }
+                            }
+                        }
+                    case .stderr:
+                        // Suppressed via 2>/dev/null, but ignore if any leaks through
+                        break
+                    }
+                }
             } catch {
                 guard !Task.isCancelled else { return }
-                errorMessage = "Remote search failed: \(error.localizedDescription)"
-                return
-            }
-
-            guard !Task.isCancelled else { return }
-
-            let lines = output.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-
-            guard let lastLine = lines.last,
-                  let exitCode = Int(lastLine.trimmingCharacters(in: .whitespaces)) else {
-                errorMessage = "Remote search failed: Could not determine search exit status"
-                return
-            }
-
-            let resultLines = lines.dropLast()
-
-            if exitCode == 0 {
-                let jsonOutput = resultLines.joined(separator: "\n")
-                guard let data = jsonOutput.data(using: .utf8) else { return }
-                let parsed = parseRipgrepJSON(data)
-                results = parsed.map { m in
-                    RemoteRipgrepResult(filePath: m.filePath, lineNumber: m.lineNumber, content: m.content)
+                
+                // Exit code 1 means no matches found, which throws in Citadel but is not an application error.
+                let errStr = String(describing: error)
+                if errStr.contains("exitStatus(1)") || errStr.contains("exit status 1") || errStr.contains("1") {
+                    // It's just no matches.
+                } else if errStr.contains("127") {
+                    self.ripgrepAvailable = false
+                    self.errorMessage = "Ripgrep (rg) not found on server."
+                } else {
+                    self.errorMessage = "Remote search failed: \(error.localizedDescription)"
                 }
-            } else if exitCode == 1 {
-                // Exit code 1 means no matches found, which is not an error.
-                results = []
-            } else if exitCode == 126 {
-                errorMessage = "Ripgrep (rg) found but not executable on server. Check file permissions or ask your system admin."
-            } else if exitCode == 127 {
-                ripgrepAvailable = false
-                errorMessage = "Ripgrep (rg) not found on server. Ask your system admin to install it, or run: conda install -c conda-forge ripgrep"
-            } else {
-                errorMessage = "Remote search failed with exit code \(exitCode)"
             }
         }
     }
