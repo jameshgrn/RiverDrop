@@ -91,7 +91,7 @@ enum HostKeyKeychainHelper {
         return String(data: data, encoding: .utf8)
     }
 
-    static func save(_ openSSHKey: String, for host: String) {
+    static func save(_ openSSHKey: String, for host: String) throws {
         let account = host.lowercased()
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -100,14 +100,19 @@ enum HostKeyKeychainHelper {
         ]
         SecItemDelete(deleteQuery as CFDictionary)
 
-        guard let data = openSSHKey.data(using: .utf8) else { return }
+        guard let data = openSSHKey.data(using: .utf8) else {
+            throw KeychainError.payloadEncodingFailed
+        }
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
         ]
-        SecItemAdd(addQuery as CFDictionary, nil)
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError.unexpectedStatus(operation: "save host key", status: status)
+        }
     }
 }
 

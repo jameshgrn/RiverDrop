@@ -3,6 +3,9 @@ import Foundation
 import NIO
 import NIOConcurrencyHelpers
 import NIOSSH
+import os
+
+private let sftpLogger = Logger(subsystem: "com.riverdrop", category: "SFTPService")
 
 @MainActor
 @Observable
@@ -14,6 +17,7 @@ final class SFTPService {
     var currentPath = ""
     var files: [RemoteFileItem] = []
     var errorMessage: String?
+    private(set) var isLoadingDirectory = false
     private(set) var connectedAuthConfig: SSHAuthConfig?
     private var connectedProxyJump: String?
     private var connectedPort = 22
@@ -60,15 +64,35 @@ final class SFTPService {
         let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
 
         do {
-            let resolvedHome = try await session.connect(
-                host: host,
-                username: username,
-                auth: auth,
-                hostKeyValidator: .custom(validator)
-            )
+            let connectSession = session
+            let resolvedHome = try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    try await connectSession.connect(
+                        host: host,
+                        username: username,
+                        auth: auth,
+                        hostKeyValidator: .custom(validator)
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 30_000_000_000)
+                    throw SFTPError.connectionTimedOut
+                }
+                guard let result = try await group.next() else {
+                    throw SFTPError.connectionTimedOut
+                }
+                group.cancelAll()
+                return result
+            }
+
+            errorMessage = nil
 
             if knownHostKey == nil, let acceptedKey = validator.acceptedOpenSSHKey {
-                HostKeyStore.save(acceptedKey, for: host)
+                do {
+                    try HostKeyStore.save(acceptedKey, for: host)
+                } catch {
+                    errorMessage = "Warning: connected but failed to save host key: \(error.localizedDescription). Future connections will require re-trusting the server."
+                }
             }
 
             connectedUsername = username
@@ -77,7 +101,6 @@ final class SFTPService {
             homePath = resolvedHome
             currentPath = resolvedHome
             isConnected = true
-            errorMessage = nil
             await listDirectory()
             startReconnectionTimer()
         } catch {
@@ -88,11 +111,14 @@ final class SFTPService {
             homePath = ""
             currentPath = ""
             files = []
+            let fix = (error as? SFTPError) == .connectionTimedOut
+                ? "check hostname and network"
+                : "verify hostname, credentials, and the server host key fingerprint"
             errorMessage = formatError(
                 operation: "connect",
                 input: "\(username)@\(host)",
                 error: error,
-                suggestedFix: "verify hostname, credentials, and the server host key fingerprint"
+                suggestedFix: fix
             )
         }
     }
@@ -104,17 +130,42 @@ final class SFTPService {
         let validator = TOFUHostKeyValidator(expectedOpenSSHKey: knownHostKey)
 
         do {
-            let resolvedHome = try await session.connectViaProxy(
-                host: server.host,
-                port: server.port,
-                proxyJump: server.proxyJump!,
-                username: server.user,
-                auth: auth,
-                hostKeyValidator: .custom(validator)
-            )
+            let connectSession = session
+            let serverHost = server.host
+            let serverPort = server.port
+            let serverProxyJump = server.proxyJump!
+            let serverUser = server.user
+
+            let resolvedHome = try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    try await connectSession.connectViaProxy(
+                        host: serverHost,
+                        port: serverPort,
+                        proxyJump: serverProxyJump,
+                        username: serverUser,
+                        auth: auth,
+                        hostKeyValidator: .custom(validator)
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 30_000_000_000)
+                    throw SFTPError.connectionTimedOut
+                }
+                guard let result = try await group.next() else {
+                    throw SFTPError.connectionTimedOut
+                }
+                group.cancelAll()
+                return result
+            }
+
+            errorMessage = nil
 
             if knownHostKey == nil, let acceptedKey = validator.acceptedOpenSSHKey {
-                HostKeyStore.save(acceptedKey, for: server.host)
+                do {
+                    try HostKeyStore.save(acceptedKey, for: server.host)
+                } catch {
+                    errorMessage = "Warning: connected but failed to save host key: \(error.localizedDescription). Future connections will require re-trusting the server."
+                }
             }
 
             connectedUsername = server.user
@@ -125,7 +176,6 @@ final class SFTPService {
             homePath = resolvedHome
             currentPath = resolvedHome
             isConnected = true
-            errorMessage = nil
             await listDirectory()
             startReconnectionTimer()
         } catch {
@@ -138,11 +188,14 @@ final class SFTPService {
             homePath = ""
             currentPath = ""
             files = []
+            let fix = (error as? SFTPError) == .connectionTimedOut
+                ? "check hostname and network"
+                : "verify bastion host is reachable and credentials are valid for both hops"
             errorMessage = formatError(
                 operation: "connect via proxy",
                 input: "\(server.user)@\(server.host) (via \(server.proxyJump!))",
                 error: error,
-                suggestedFix: "verify bastion host is reachable and credentials are valid for both hops"
+                suggestedFix: fix
             )
         }
     }
@@ -214,9 +267,10 @@ final class SFTPService {
 
     private func startReconnectionTimer() {
         reconnectTask?.cancel()
-        reconnectTask = Task {
+        reconnectTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 300 * 1_000_000_000) // 5 minutes
+                guard let self else { return }
                 await ensureConnected()
             }
         }
@@ -266,6 +320,9 @@ final class SFTPService {
             files = []
             return
         }
+
+        isLoadingDirectory = true
+        defer { isLoadingDirectory = false }
 
         do {
             files = try await session.listDirectory(atPath: currentPath)
@@ -465,7 +522,11 @@ private actor SFTPSession {
         )
 
         if bastionHostKey == nil, let acceptedKey = bastionValidator.acceptedOpenSSHKey {
-            HostKeyStore.save(acceptedKey, for: parsed.host)
+            do {
+                try HostKeyStore.save(acceptedKey, for: parsed.host)
+            } catch {
+                sftpLogger.warning("Failed to save bastion host key for \(parsed.host): \(error.localizedDescription)")
+            }
         }
 
         let targetAuth: SSHAuthenticationMethod
@@ -702,8 +763,8 @@ private enum HostKeyStore {
         HostKeyKeychainHelper.load(for: host)
     }
 
-    static func save(_ openSSHKey: String, for host: String) {
-        HostKeyKeychainHelper.save(openSSHKey, for: host)
+    static func save(_ openSSHKey: String, for host: String) throws {
+        try HostKeyKeychainHelper.save(openSSHKey, for: host)
     }
 }
 
@@ -737,10 +798,11 @@ private final class TOFUHostKeyValidator: NIOSSHClientServerAuthenticationDelega
     }
 }
 
-enum SFTPError: LocalizedError {
+enum SFTPError: LocalizedError, Equatable {
     case notConnected
     case hostKeyMismatch(expectedOpenSSHKey: String, observedOpenSSHKey: String)
     case localFileCreateFailed(path: String)
+    case connectionTimedOut
 
     var errorDescription: String? {
         switch self {
@@ -750,6 +812,8 @@ enum SFTPError: LocalizedError {
             return "Host key mismatch. Expected \(expectedOpenSSHKey), received \(observedOpenSSHKey)"
         case let .localFileCreateFailed(path):
             return "Could not create local file at \(path)"
+        case .connectionTimedOut:
+            return "Connection timed out after 30 seconds. Check hostname and network."
         }
     }
 }

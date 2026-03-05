@@ -99,34 +99,41 @@ private struct StagedChipView: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: isUpload ? "arrow.up" : "arrow.down")
-                .font(.system(size: 8, weight: .bold))
+                .imageScale(.small)
+                .fontWeight(.bold)
                 .foregroundStyle(chipColor)
 
             FileIconView(filename: item.filename, isDirectory: false, size: 10)
 
             Text(item.filename)
-                .font(.system(size: 10))
+                .font(.caption2)
                 .lineLimit(1)
                 .frame(maxWidth: 100)
 
             Text(ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file))
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundStyle(.tertiary)
 
             Button(action: onRemove) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 7, weight: .bold))
+                    .imageScale(.small)
+                    .fontWeight(.bold)
                     .foregroundStyle(isHovered ? .secondary : .tertiary)
                     .frame(width: 14, height: 14)
                     .background(Color.primary.opacity(isHovered ? 0.1 : 0.06), in: Circle())
+                    .padding(6)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("Remove \(item.filename)")
         }
         .padding(.leading, 6)
         .padding(.trailing, 4)
         .padding(.vertical, 4)
         .background(chipColor.opacity(isHovered ? 0.1 : 0.05), in: Capsule())
         .overlay(Capsule().strokeBorder(chipColor.opacity(isHovered ? 0.2 : 0.12), lineWidth: 0.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(isUpload ? "Upload" : "Download") staged: \(item.filename)")
         .onHover { isHovered = $0 }
     }
 }
@@ -185,7 +192,8 @@ struct MainView: View {
                     localCurrentDirectory: $localCurrentDirectory,
                     recentlyDownloaded: $recentlyDownloaded,
                     showDryRunPreview: $showDryRunPreview,
-                    dryRunIsUpload: $dryRunIsUpload
+                    dryRunIsUpload: $dryRunIsUpload,
+                    stagedUploads: $stagedUploads
                 )
                 .frame(minWidth: 250)
 
@@ -219,10 +227,9 @@ struct MainView: View {
             }
             Task { await navigateRemoteTo(pathForRoot(remoteRoot)) }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .riverDropNavigateLocalPath)) { notification in
-            guard let path = notification.object as? String else { return }
+        .focusedSceneValue(\.navigateLocalPath, { [self] path in
             navigateLocalToCommandPath(path)
-        }
+        })
         .onChange(of: showHiddenRemoteFiles) { _, showHidden in
             if !showHidden {
                 let visibleIDs = Set(visibleRemoteFiles.map(\.id))
@@ -249,7 +256,16 @@ struct MainView: View {
                 Divider()
             }
 
-            if filteredRemoteFiles.isEmpty {
+            if sftpService.isLoadingDirectory {
+                VStack(spacing: RD.Spacing.md) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading\u{2026}")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredRemoteFiles.isEmpty {
                 EmptyStateView(
                     remoteSearchText.isEmpty ? "Empty directory" : "No matches",
                     icon: remoteSearchText.isEmpty ? "folder" : "magnifyingglass",
@@ -342,8 +358,11 @@ struct MainView: View {
                     Task { await sftpService.navigateTo("..") }
                 } label: {
                     Image(systemName: "chevron.left")
+                        .frame(minWidth: 28, minHeight: 28)
+                        .contentShape(Rectangle())
                 }
                 .help("Go up")
+                .accessibilityLabel("Go to parent directory")
                 .disabled(sftpService.currentPath == "/")
                 .frame(height: 24)
 
@@ -351,8 +370,11 @@ struct MainView: View {
                     Task { await sftpService.listDirectory() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
+                        .frame(minWidth: 28, minHeight: 28)
+                        .contentShape(Rectangle())
                 }
                 .help("Refresh")
+                .accessibilityLabel("Refresh directory listing")
                 .frame(height: 24)
 
                 Picker("", selection: $remoteRoot) {
@@ -374,7 +396,7 @@ struct MainView: View {
                         .foregroundStyle(.tertiary)
                     TextField("Filter\u{2026}", text: $remoteSearchText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12))
+                        .font(.caption)
                     if !remoteSearchText.isEmpty {
                         Button {
                             remoteSearchText = ""
@@ -410,6 +432,7 @@ struct MainView: View {
                 .frame(width: 28, height: 24)
                 .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
                 .help("Preview rsync changes")
+                .accessibilityLabel("Preview rsync changes")
 
                 // Overflow menu
                 Menu {
@@ -438,11 +461,12 @@ struct MainView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 13))
+                        .font(.callout)
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 28, height: 24)
                 .help("More actions")
+                .accessibilityLabel("More actions")
 
                 StatusBadge(
                     text: hasMoreRemoteFiles
@@ -459,7 +483,7 @@ struct MainView: View {
                 Divider()
                 HStack(spacing: RD.Spacing.sm) {
                     Text("\(selectedRemoteFiles.count) selected")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
 
                     Spacer()
@@ -469,9 +493,9 @@ struct MainView: View {
                     } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "tray.and.arrow.down")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                             Text("Stage")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
                     }
                     .buttonStyle(.borderless)
@@ -482,9 +506,9 @@ struct MainView: View {
                     } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                             Text("Download")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
                     }
                     .buttonStyle(.borderless)
@@ -495,9 +519,9 @@ struct MainView: View {
                     } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.caption2.weight(.semibold))
                             Text("Deselect")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
                         .foregroundStyle(.secondary)
                     }
@@ -531,11 +555,11 @@ struct MainView: View {
             HStack(spacing: RD.Spacing.xs) {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(.tertiary)
                     TextField("Search file contents...", text: $remoteContentSearchQuery)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .onSubmit {
                             guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                             remoteRipgrepSearch.search(
@@ -562,6 +586,7 @@ struct MainView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Cancel search")
+                    .accessibilityLabel("Cancel search")
                 } else {
                     Button {
                         guard !remoteContentSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return }
@@ -572,10 +597,11 @@ struct MainView: View {
                         )
                     } label: {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                     }
                     .buttonStyle(.borderless)
                     .help("Run search")
+                    .accessibilityLabel("Run search")
                 }
             }
 
@@ -739,7 +765,7 @@ struct MainView: View {
                 FileIconView(filename: file.filename, isDirectory: true, size: 15)
 
                 Text(file.filename)
-                    .font(.system(size: 13))
+                    .font(.callout)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
@@ -747,15 +773,18 @@ struct MainView: View {
 
                 if let date = file.modificationDate {
                     Text(date, style: .date)
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10))
+                    .font(.caption2)
                     .foregroundStyle(.quaternary)
             }
             .padding(.vertical, 3)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Folder: \(file.filename)")
+            .accessibilityHint("Double-tap to open")
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -778,18 +807,18 @@ struct MainView: View {
             FileIconView(filename: file.filename, isDirectory: false, size: 15)
 
             Text(file.filename)
-                .font(.system(size: 13))
+                .font(.callout)
                 .lineLimit(1)
 
             Spacer()
 
             Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
-                .font(.system(size: 11, design: .monospaced))
+                .font(.caption2.monospaced())
                 .foregroundStyle(.tertiary)
 
             if let date = file.modificationDate {
                 Text(date, style: .date)
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
         }
@@ -811,6 +840,9 @@ struct MainView: View {
         .onDrag {
             remoteDragProvider(for: file)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(file.filename), \(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .contentShape(Rectangle())
         .onTapGesture {
             if NSEvent.modifierFlags.contains(.command) {
@@ -857,10 +889,10 @@ struct MainView: View {
                 // Compact empty hint
                 HStack(spacing: RD.Spacing.sm) {
                     Image(systemName: "tray")
-                        .font(.system(size: 13))
+                        .font(.callout)
                         .foregroundStyle(.secondary.opacity(0.5))
                     Text("Drop files to stage transfers")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(.secondary.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity)
@@ -880,10 +912,10 @@ struct MainView: View {
                     HStack(spacing: RD.Spacing.sm) {
                         Image(systemName: "tray.full")
                             .foregroundStyle(Color.riverPrimary)
-                            .font(.system(size: 12))
+                            .font(.caption)
 
                         Text("\(allStagedItems.count) file\(allStagedItems.count == 1 ? "" : "s") staged")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.caption2.weight(.medium))
 
                         Spacer()
 
@@ -894,7 +926,7 @@ struct MainView: View {
                             }
                         } label: {
                             Text("Clear")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.borderless)
@@ -903,9 +935,9 @@ struct MainView: View {
                             Button(action: uploadStaged) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "arrow.up.circle.fill")
-                                        .font(.system(size: 10))
+                                        .font(.caption2)
                                     Text("Upload All")
-                                        .font(.system(size: 11, weight: .semibold))
+                                        .font(.caption2.weight(.semibold))
                                 }
                                 .foregroundStyle(.green)
                                 .padding(.horizontal, 10)
@@ -920,9 +952,9 @@ struct MainView: View {
                             Button(action: downloadStaged) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "arrow.down.circle.fill")
-                                        .font(.system(size: 10))
+                                        .font(.caption2)
                                     Text("Download All")
-                                        .font(.system(size: 11, weight: .semibold))
+                                        .font(.caption2.weight(.semibold))
                                 }
                                 .foregroundStyle(.blue)
                                 .padding(.horizontal, 10)
@@ -1002,20 +1034,22 @@ struct MainView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isTransferLogExpanded ? 90 : 0))
                         .animation(.spring(response: 0.16, dampingFraction: 0.85), value: isTransferLogExpanded)
-                        .frame(width: 14)
+                        .frame(minWidth: 28, minHeight: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(isTransferLogExpanded ? "Collapse transfer log" : "Expand transfer log")
 
                 Image(systemName: "arrow.up.arrow.down")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Color.riverPrimary)
 
                 Text("Transfers")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
 
                 StatusBadge(text: transferSummary, color: hasActiveTransfers ? .riverAccent : .secondary)
 
@@ -1031,11 +1065,14 @@ struct MainView: View {
                         transferManager.transfers.removeAll(where: { $0.status != .inProgress })
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 11))
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
                     .help("Clear completed transfers")
+                    .accessibilityLabel("Clear completed transfers")
                 }
             }
             .padding(.horizontal, RD.Spacing.md)
@@ -1067,12 +1104,12 @@ struct MainView: View {
     private func transferRow(_ item: TransferItem) -> some View {
         HStack(spacing: RD.Spacing.sm) {
             Image(systemName: item.isUpload ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                .font(.system(size: 13))
+                .font(.callout)
                 .foregroundStyle(item.isUpload ? .green : .blue)
 
             Text(item.filename)
                 .lineLimit(1)
-                .font(.system(size: 12))
+                .font(.caption)
 
             Spacer()
 
@@ -1096,7 +1133,7 @@ struct MainView: View {
                 .frame(width: 80)
 
                 Text("\(Int(item.progress * 100))%")
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.caption2.monospaced())
                     .foregroundStyle(.secondary)
                     .frame(width: 30, alignment: .trailing)
 
@@ -1104,11 +1141,14 @@ struct MainView: View {
                     transferManager.cancelTransfer(id: item.id)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundStyle(.red.opacity(0.7))
+                        .frame(minWidth: 28, minHeight: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
                 .help("Cancel transfer")
+                .accessibilityLabel("Cancel transfer of \(item.filename)")
             } else {
                 transferStatusView(item)
             }
@@ -1121,7 +1161,7 @@ struct MainView: View {
     private var connectionFooter: some View {
         HStack(spacing: RD.Spacing.sm) {
             Image(systemName: sftpService.isConnected ? "lock.shield.fill" : "lock.slash")
-                .font(.system(size: 11))
+                .font(.caption2)
                 .foregroundStyle(sftpService.isConnected ? Color.riverPrimary : .secondary)
 
             Text(sftpService.isConnected ? "\(sftpService.connectedUsername)@\(sftpService.connectedHost)" : "Not connected")
@@ -1146,7 +1186,7 @@ struct MainView: View {
         case .completed:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundStyle(.green)
                 StatusBadge(text: "Done", color: .green)
                 if !item.destinationDirectory.isEmpty {
@@ -1159,9 +1199,9 @@ struct MainView: View {
                     } label: {
                         HStack(spacing: 2) {
                             Image(systemName: "arrow.right.circle")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                             Text("Show")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                         }
                         .foregroundStyle(.blue)
                     }
@@ -1172,14 +1212,14 @@ struct MainView: View {
         case .failed:
             HStack(spacing: 4) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundStyle(.red)
                 StatusBadge(text: "Failed", color: .red)
             }
         case .cancelled:
             HStack(spacing: 4) {
                 Image(systemName: "pause.circle.fill")
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundStyle(.orange)
                 StatusBadge(text: "Cancelled", color: .orange)
             }

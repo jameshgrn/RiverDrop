@@ -32,7 +32,7 @@ struct LocalBrowserView: View {
     @State private var showRenameAlert = false
     @State private var itemToRename: LocalFileItem?
     @State private var renameText = ""
-    @State private var stagedUploads: [StagedItem] = []
+    @Binding var stagedUploads: [StagedItem]
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenFiles = false
     @State private var savedBookmarks: [SavedBookmark] = []
 
@@ -141,16 +141,22 @@ struct LocalBrowserView: View {
                 // Left: navigation + bookmarks
                 Button { navigateTo(localCurrentDirectory.deletingLastPathComponent()) } label: {
                     Image(systemName: "chevron.left")
+                        .frame(minWidth: 28, minHeight: 28)
+                        .contentShape(Rectangle())
                 }
                 .frame(width: 28, height: 24)
                 .help("Go up")
+                .accessibilityLabel("Go to parent directory")
                 .disabled(localCurrentDirectory.path == "/")
 
                 Button { loadDirectory() } label: {
                     Image(systemName: "arrow.clockwise")
+                        .frame(minWidth: 28, minHeight: 28)
+                        .contentShape(Rectangle())
                 }
                 .frame(width: 28, height: 24)
                 .help("Refresh")
+                .accessibilityLabel("Refresh directory listing")
 
                 Menu {
                     ForEach(Self.defaultBookmarks, id: \.path) { bookmark in
@@ -197,6 +203,7 @@ struct LocalBrowserView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Bookmarks")
+                .accessibilityLabel("Bookmarks")
 
                 // Center: filter field (flex)
                 HStack(spacing: 4) {
@@ -205,7 +212,7 @@ struct LocalBrowserView: View {
                         .foregroundStyle(.tertiary)
                     TextField("Filter\u{2026}", text: $searchText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12))
+                        .font(.caption)
                     if !searchText.isEmpty {
                         Button {
                             searchText = ""
@@ -241,6 +248,7 @@ struct LocalBrowserView: View {
                 .frame(width: 28, height: 24)
                 .disabled(!RsyncTransfer.isAvailable || !sftpService.isConnected || transferManager.isRunningDryRun)
                 .help("Preview rsync upload changes")
+                .accessibilityLabel("Preview rsync upload changes")
 
                 // Right: overflow menu + count
                 Menu {
@@ -278,6 +286,7 @@ struct LocalBrowserView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("More actions")
+                .accessibilityLabel("More actions")
 
                 StatusBadge(
                     text: hasMoreFiles
@@ -294,7 +303,7 @@ struct LocalBrowserView: View {
                 Divider()
                 HStack(spacing: RD.Spacing.sm) {
                     Text("\(selectedIDs.count) selected")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
 
                     Spacer()
@@ -302,9 +311,9 @@ struct LocalBrowserView: View {
                     Button { stageSelectedForUpload() } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "tray.and.arrow.up")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                             Text("Stage")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
                     }
                     .buttonStyle(.borderless)
@@ -314,9 +323,9 @@ struct LocalBrowserView: View {
                     Button { uploadSelected() } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                             Text("Upload")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
                     }
                     .buttonStyle(.borderless)
@@ -326,9 +335,9 @@ struct LocalBrowserView: View {
                     Button { selectedIDs = [] } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.caption2.weight(.semibold))
                             Text("Deselect")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
                         .foregroundStyle(.secondary)
                     }
@@ -375,11 +384,11 @@ struct LocalBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(.tertiary)
                     TextField("Search file contents\u{2026}", text: $contentSearchQuery)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .onSubmit { runContentSearch() }
                 }
                 .padding(.horizontal, RD.Spacing.sm)
@@ -397,13 +406,15 @@ struct LocalBrowserView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Cancel search")
+                    .accessibilityLabel("Cancel search")
                 } else {
                     Button { runContentSearch() } label: {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                     }
                     .buttonStyle(.borderless)
                     .help("Run search")
+                    .accessibilityLabel("Run search")
                 }
             }
 
@@ -574,10 +585,13 @@ struct LocalBrowserView: View {
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.quaternary)
             }
             .padding(.vertical, 2)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Folder: \(file.filename)")
+            .accessibilityHint("Double-tap to open")
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -656,6 +670,9 @@ struct LocalBrowserView: View {
                     ? Color.riverPrimary.opacity(0.06)
                     : nil
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(file.filename), \(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             openFile(file)

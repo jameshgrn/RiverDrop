@@ -46,7 +46,7 @@ struct DryRunPreviewView: View {
 
                 if result.totalBytes > 0 {
                     Text(ByteCountFormatter.string(fromByteCount: result.totalBytes, countStyle: .file))
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(.caption.weight(.medium).monospaced())
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -133,7 +133,7 @@ struct DryRunPreviewView: View {
             )
 
             Text(entry.path)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.caption.monospaced())
                 .lineLimit(1)
                 .truncationMode(.middle)
 
@@ -170,7 +170,7 @@ struct DryRunPreviewView: View {
                             .controlSize(.small)
                     } else {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 11))
+                            .font(.caption2)
                     }
                     Text(isApplying ? "Syncing\u{2026}" : "Sync \(result.totalFiles) files")
                 }

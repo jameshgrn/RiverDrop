@@ -66,11 +66,11 @@ struct DropZoneView: View {
     private var emptyDropZone: some View {
         HStack(spacing: RD.Spacing.sm) {
             Image(systemName: direction.emptyIcon)
-                .font(.system(size: 13))
+                .font(.callout)
                 .foregroundStyle(isTargeted ? direction.color : .secondary.opacity(0.5))
 
             Text("Drop files to stage for \(direction.label.lowercased())")
-                .font(.system(size: 11))
+                .font(.caption2)
                 .foregroundStyle(isTargeted ? direction.color : .secondary.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
@@ -100,13 +100,13 @@ struct DropZoneView: View {
             HStack(spacing: RD.Spacing.sm) {
                 Image(systemName: direction.icon)
                     .foregroundStyle(direction.color)
-                    .font(.system(size: 12))
+                    .font(.caption)
 
                 Text("\(stagedItems.count) file\(stagedItems.count == 1 ? "" : "s") staged")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption2.weight(.medium))
 
                 Text(totalSizeText)
-                    .font(.system(size: 10))
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
 
                 Spacer()
@@ -117,7 +117,7 @@ struct DropZoneView: View {
                     }
                 } label: {
                     Text("Clear")
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
@@ -125,9 +125,9 @@ struct DropZoneView: View {
                 Button(action: onTransferAll) {
                     HStack(spacing: 4) {
                         Image(systemName: direction.icon)
-                            .font(.system(size: 10))
+                            .font(.caption2)
                         Text("\(direction.label) All")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
@@ -163,12 +163,12 @@ struct DropZoneView: View {
             FileIconView(filename: item.filename, isDirectory: false, size: 10)
 
             Text(item.filename)
-                .font(.system(size: 10))
+                .font(.caption2)
                 .lineLimit(1)
                 .frame(maxWidth: 100)
 
             Text(ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file))
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundStyle(.tertiary)
 
             Button {
@@ -177,18 +177,24 @@ struct DropZoneView: View {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 7, weight: .bold))
+                    .imageScale(.small)
+                    .fontWeight(.bold)
                     .foregroundStyle(.tertiary)
                     .frame(width: 14, height: 14)
                     .background(Color.primary.opacity(0.06), in: Circle())
+                    .padding(6)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("Remove \(item.filename)")
         }
         .padding(.leading, 6)
         .padding(.trailing, 4)
         .padding(.vertical, 4)
         .background(direction.color.opacity(0.05), in: Capsule())
         .overlay(Capsule().strokeBorder(direction.color.opacity(0.12), lineWidth: 0.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Staged: \(item.filename)")
     }
 
     private var totalSizeText: String {

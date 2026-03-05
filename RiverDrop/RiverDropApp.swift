@@ -7,6 +7,7 @@ struct RiverDropApp: App {
     @State private var serverStore = ServerStore()
     @State private var selectedServerID: ServerEntry.ID?
     @FocusedValue(\.selectedRemotePaths) private var selectedRemotePaths
+    @FocusedValue(\.navigateLocalPath) private var navigateLocalPath
 
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenLocalFiles = false
     @AppStorage(DefaultsKey.showHiddenRemoteFiles) private var showHiddenRemoteFiles = false
@@ -95,16 +96,18 @@ struct RiverDropApp: App {
             // Go menu
             CommandMenu("Go") {
                 Button("Home") {
-                    postNavigateLocalPathCommand("/Users/\(NSUserName())")
+                    navigateLocalPath?("/Users/\(NSUserName())")
                 }
                 .keyboardShortcut("1", modifiers: .command)
+                .disabled(navigateLocalPath == nil)
 
                 Divider()
 
                 Button("Navigate to Folder\u{2026}") {
-                    postNavigateLocalPathCommand(AppCommandPayload.openPanel)
+                    navigateLocalPath?(AppCommandPayload.openPanel)
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
+                .disabled(navigateLocalPath == nil)
             }
         }
 
@@ -113,7 +116,4 @@ struct RiverDropApp: App {
         }
     }
 
-    private func postNavigateLocalPathCommand(_ path: String) {
-        NotificationCenter.default.post(name: .riverDropNavigateLocalPath, object: path)
-    }
 }

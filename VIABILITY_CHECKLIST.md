@@ -32,7 +32,8 @@ For a tool that manages remote servers and sensitive data, viability means **pre
 - [x] **Network Client Entitlement:** SSH/SFTP outbound connections allowed.
 - [x] **App Sandbox:** Enabled (`com.apple.security.app-sandbox = true`) with user-selected read-write and bookmark entitlements.
 - [ ] **Hardened Runtime & Notarization:** Required for direct-download distribution. *(in progress)*
-- [ ] **Privacy Manifests:** `PrivacyInfo.xcprivacy` not yet added. Required for App Store submission. *(in progress)*
+- [x] **Privacy Manifests:** `PrivacyInfo.xcprivacy` added with `NSPrivacyAccessedAPICategoryFileTimestamp` declaration.
+- **No Mac App Store:** The app uses `Process()` to spawn `rsync` and `rg`. This is incompatible with the MAS sandbox. Distribution is direct download (notarized DMG) and Homebrew Cask only.
 
 ## 5. Performance
 
@@ -44,6 +45,6 @@ For a tool that manages remote servers and sensitive data, viability means **pre
 
 ## 6. Monetization
 
-- [x] **StoreKit 2 Integration:** `com.riverdrop.pro` non-consumable ($14.99) via `StoreManager` and `PaywallView`.
+- [ ] **License Key Integration:** Gumroad or Stripe-based license key validation for Pro unlock ($14.99 one-time). StoreKit 2 has been removed (no MAS distribution). `PaywallView.swift` and `StoreManager.swift` are empty stubs.
 - [x] **Feature Gating:** Free tier = SFTP; Pro unlocks rsync, ripgrep, sync previews.
-- [x] **Restore Purchases:** Restore flow implemented in `PaywallView`.
+- [ ] **Purchase Restore / Validation:** Needs reimplementation with license key system (offline validation after activation).

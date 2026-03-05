@@ -126,7 +126,7 @@ final class RsyncTransfer: @unchecked Sendable {
         let knownHostsPath = try createKnownHostsFile(for: host)
         tempFiles.append(knownHostsPath)
 
-        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(shellQuote(knownHostsPath))"
+        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath.shellQuoted)"
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -141,7 +141,7 @@ final class RsyncTransfer: @unchecked Sendable {
         case let .sshKey(keyPath, passphrase):
             let tempKeyPath = try copySSHKeyToTemp(keyPath)
             tempFiles.append(tempKeyPath)
-            sshCommand += " -i \(shellQuote(tempKeyPath)) -o IdentitiesOnly=yes"
+            sshCommand += " -i \(tempKeyPath.shellQuoted) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -233,7 +233,7 @@ final class RsyncTransfer: @unchecked Sendable {
         let knownHostsPath = try createKnownHostsFile(for: host)
         tempFiles.append(knownHostsPath)
 
-        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(shellQuote(knownHostsPath))"
+        var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath.shellQuoted)"
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -248,7 +248,7 @@ final class RsyncTransfer: @unchecked Sendable {
         case let .sshKey(keyPath, passphrase):
             let tempKeyPath = try copySSHKeyToTemp(keyPath)
             tempFiles.append(tempKeyPath)
-            sshCommand += " -i \(shellQuote(tempKeyPath)) -o IdentitiesOnly=yes"
+            sshCommand += " -i \(tempKeyPath.shellQuoted) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -365,7 +365,7 @@ final class RsyncTransfer: @unchecked Sendable {
         let knownHostsPath = try createKnownHostsFile(for: host)
         tempFiles.append(knownHostsPath)
 
-        var sshCommand = "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(shellQuote(knownHostsPath))"
+        var sshCommand = "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath.shellQuoted)"
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -380,7 +380,7 @@ final class RsyncTransfer: @unchecked Sendable {
         case let .sshKey(keyPath, passphrase):
             let tempKeyPath = try copySSHKeyToTemp(keyPath)
             tempFiles.append(tempKeyPath)
-            sshCommand += " -i \(shellQuote(tempKeyPath)) -o IdentitiesOnly=yes"
+            sshCommand += " -i \(tempKeyPath.shellQuoted) -o IdentitiesOnly=yes"
             if let passphrase {
                 let askpassScript = try createAskpassScript(password: passphrase)
                 tempFiles.append(askpassScript)
@@ -415,8 +415,10 @@ final class RsyncTransfer: @unchecked Sendable {
         let stdoutHandle = stdoutPipe.fileHandleForReading
         let stderrHandle = stderrPipe.fileHandleForReading
 
-        let stdoutData = await Task.detached { stdoutHandle.readDataToEndOfFile() }.value
-        let stderrData = await Task.detached { stderrHandle.readDataToEndOfFile() }.value
+        async let stdoutRead = Task.detached { stdoutHandle.readDataToEndOfFile() }.value
+        async let stderrRead = Task.detached { stderrHandle.readDataToEndOfFile() }.value
+        let stdoutData = await stdoutRead
+        let stderrData = await stderrRead
         await Task.detached { proc.waitUntilExit() }.value
         clearProcess()
 
@@ -457,13 +459,28 @@ final class RsyncTransfer: @unchecked Sendable {
         let scriptPath = dir.appendingPathComponent("riverdrop_askpass_\(UUID().uuidString).sh").path
 
         let escaped = password.replacingOccurrences(of: "'", with: "'\\''")
-        let content = "#!/bin/sh\necho '\(escaped)'\n"
+        let content = "#!/bin/sh\nprintf '%s\\n' '\(escaped)'\n"
 
-        FileManager.default.createFile(atPath: scriptPath, contents: content.data(using: .utf8))
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o700],
-            ofItemAtPath: scriptPath
-        )
+        guard let contentData = content.data(using: .utf8) else {
+            throw RsyncError.askpassScriptFailed
+        }
+
+        // Atomic create with correct permissions — no TOCTOU window.
+        // O_EXCL ensures the file doesn't already exist; mode 0o700 is set at creation time.
+        let fd = Darwin.open(scriptPath, O_WRONLY | O_CREAT | O_EXCL, 0o700)
+        guard fd >= 0 else {
+            throw RsyncError.askpassScriptFailed
+        }
+        defer { Darwin.close(fd) }
+
+        try contentData.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            let written = Darwin.write(fd, baseAddress, buffer.count)
+            if written != buffer.count {
+                throw RsyncError.askpassScriptFailed
+            }
+        }
+
         return scriptPath
     }
 
@@ -513,10 +530,6 @@ final class RsyncTransfer: @unchecked Sendable {
         )
         return dst.path
     }
-
-    private func shellQuote(_ path: String) -> String {
-        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
 }
 
 /// Thread-safe one-shot flag for ensuring a continuation is resumed exactly once.
@@ -539,6 +552,7 @@ enum RsyncError: LocalizedError {
     case processFailed(exitCode: Int32)
     case hostKeyMissing(host: String)
     case knownHostsWriteFailed(path: String)
+    case askpassScriptFailed
     case dryRunFailed(exitCode: Int32, stderr: String)
 
     var errorDescription: String? {
@@ -551,6 +565,8 @@ enum RsyncError: LocalizedError {
             return "No trusted host key found for \(host). Connect via SFTP first to trust and store the server key."
         case let .knownHostsWriteFailed(path):
             return "Could not write temporary known_hosts file at \(path)"
+        case .askpassScriptFailed:
+            return "Could not create askpass script"
         case let .dryRunFailed(exitCode, stderr):
             return "rsync dry-run exited with code \(exitCode): \(stderr)"
         }

@@ -32,8 +32,10 @@ Rationale: Safety plus scale is premium value. Both dry-run preview and apply-sy
 - Advanced transfer controls once shipped: rsync profiles, delete-mode safeguards, and resumable/reconnect behavior (aligned with `VIABILITY_CHECKLIST.md`).
 Rationale: Power users pay for predictable high-volume operations, not just UI polish.
 
-- Remove "Unlimited Bookmarks" from paid positioning unless an actual limit exists (`PaywallView.swift`, `RiverDrop.storekit`, `LocalBrowserView.swift`).
+- Remove "Unlimited Bookmarks" from paid positioning unless an actual limit exists (`LocalBrowserView.swift`).
 Rationale: Current code does not enforce a meaningful free bookmark cap, so this is weak/possibly misleading as a paid differentiator.
+
+**Note on payment infrastructure:** StoreKit 2 has been removed. Pro unlock will use a Gumroad or Stripe license key validated at activation. `PaywallView.swift` and `StoreManager.swift` are empty stubs pending this integration.
 
 ## 4. Features That Should NOT Be Gated (anti-patterns)
 - Basic upload/download/browse/connect.
@@ -44,10 +46,11 @@ Rationale: Current code does not enforce a meaningful free bookmark cap, so this
 These are trust and baseline competence layers; gating them increases churn and support burden.
 
 ## 5. Pricing Analysis: Is $14.99 right?
-- Relative positioning (as of March 2026 assumptions): Cyberduck is free/donation-supported, FileZilla client is free, VS Code Remote SSH is free, and Transmit is around $45 one-time.
-- Conclusion: $14.99 is reasonable as an entry Pro price, but only if paid value is obvious within minutes.
+- Relative positioning (as of March 2026 assumptions): Cyberduck is free/donation-supported, FileZilla client is free, VS Code Remote SSH is free, Transmit is $45 one-time, and ForkLift is $29.95 one-time. Both Transmit and ForkLift include rsync sync.
+- Conclusion: $14.99 is reasonable as an entry Pro price, but only if paid value is obvious within minutes. Undercuts Transmit and ForkLift while offering remote ripgrep, which neither has.
 - Current risk: with local ripgrep as the primary gate, value can feel thin; many users will perceive "free alternatives + command line" as good enough.
 - Recommendation: keep $14.99 while strengthening Pro around rsync + remote ripgrep + safe sync preview/apply. Re-test at $19.99 after those are complete and stable.
+- Distribution: direct download only (notarized DMG). `Process()` usage for rsync/rg is incompatible with the Mac App Store sandbox.
 
 ## 6. Recommendations for Future Pro Features
 - Gate remote ripgrep as a flagship Pro feature, with a small free trial quota per session/day.
@@ -55,4 +58,3 @@ These are trust and baseline competence layers; gating them increases churn and 
 - Add resumable/background transfer queue behavior for unstable Wi-Fi/long jobs.
 - Add sync conflict intelligence (changed both sides) before apply.
 - Add team/lab features only after single-user Pro conversion is strong: exportable connection profiles, managed host key trust, and shared preset bundles.
-

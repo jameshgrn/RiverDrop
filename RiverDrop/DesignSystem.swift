@@ -228,22 +228,25 @@ struct BreadcrumbView<ID: Hashable>: View {
                         onNavigate(component.id)
                     } label: {
                         Text(component.name)
-                            .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
+                            .font(.caption.weight(isCurrent ? .semibold : .regular))
                             .foregroundStyle(isCurrent ? Color.riverPrimary : .secondary)
                     }
                     .buttonStyle(.plain)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
                     .background(
                         isCurrent
                             ? Color.riverPrimary.opacity(0.08)
                             : Color.primary.opacity(0.001),
                         in: RoundedRectangle(cornerRadius: 4)
                     )
+                    .contentShape(Rectangle())
+                    .accessibilityLabel(isCurrent ? "\(component.name), current" : component.name)
 
                     if index < components.count - 1 {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
+                            .imageScale(.small)
+                            .fontWeight(.bold)
                             .foregroundStyle(.quaternary)
                     }
                 }
@@ -271,7 +274,7 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: RD.Spacing.lg) {
             Image(systemName: icon)
-                .font(.system(size: 32, weight: .light))
+                .font(.title.weight(.light))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [Color.secondary.opacity(0.3), Color.secondary.opacity(0.15)],
@@ -282,7 +285,7 @@ struct EmptyStateView: View {
 
             VStack(spacing: RD.Spacing.xs) {
                 Text(title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.body.weight(.medium))
                     .foregroundStyle(.secondary)
 
                 if let subtitle {
@@ -324,15 +327,15 @@ struct PaneHeader: View {
                 .frame(width: 3, height: 14)
 
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(Color.riverPrimary)
 
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
 
             if let subtitle {
                 Text(subtitle)
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)

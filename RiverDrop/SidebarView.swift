@@ -49,6 +49,7 @@ struct SidebarView: View {
                     Image(systemName: "plus")
                 }
                 .help("Add server manually")
+                .accessibilityLabel("Add server manually")
             }
 
             ToolbarItem {
@@ -58,6 +59,7 @@ struct SidebarView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh SSH config")
+                .accessibilityLabel("Refresh SSH config")
             }
         }
         .sheet(isPresented: $showAddServer) {
@@ -82,7 +84,7 @@ struct SidebarView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(server.label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.callout.weight(.medium))
                     .lineLimit(1)
 
                 Text("\(server.user)@\(server.host)")
@@ -95,7 +97,7 @@ struct SidebarView: View {
 
             if server.proxyJump != nil {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 10))
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .help("Uses ProxyJump")
             }

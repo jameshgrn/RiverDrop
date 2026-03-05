@@ -18,6 +18,7 @@ struct ConnectionView: View {
     @State private var discoveredKeys: [SSHKeyInfo] = []
     @State private var isConnecting = false
     @State private var appeared = false
+    @State private var connectTask: Task<Void, Never>?
 
     private var canConnect: Bool {
         guard !host.isEmpty, !username.isEmpty, !isConnecting else { return false }
@@ -96,7 +97,7 @@ struct ConnectionView: View {
     private var heroSection: some View {
         VStack(spacing: RD.Spacing.sm) {
             Image(systemName: "drop.fill")
-                .font(.system(size: 42, weight: .medium))
+                .font(.system(size: 42))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [.riverPrimary, .riverAccent],
@@ -112,7 +113,7 @@ struct ConnectionView: View {
                 }
 
             Text("RiverDrop")
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.title.weight(.bold))
                 .tracking(0.3)
 
             Text("Secure File Transfer")
@@ -163,9 +164,9 @@ struct ConnectionView: View {
                 } label: {
                     HStack(spacing: RD.Spacing.xs) {
                         Image(systemName: mode == .password ? "key.fill" : "key.radiowaves.forward")
-                            .font(.system(size: 11))
+                            .font(.caption2)
                         Text(mode.rawValue)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.callout.weight(.medium))
                     }
                     .foregroundStyle(authMode == mode ? .white : .secondary)
                     .frame(maxWidth: .infinity)
@@ -211,7 +212,7 @@ struct ConnectionView: View {
 
                 Button("Browse\u{2026}") { browseForKey() }
                     .buttonStyle(.borderless)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(Color.riverPrimary)
             }
             .padding(RD.Spacing.md)
@@ -221,7 +222,7 @@ struct ConnectionView: View {
             if !sshKeyPath.isEmpty {
                 HStack(spacing: RD.Spacing.xs) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundStyle(.green)
                     Text(sshKeyPath)
                         .font(.caption2)
@@ -286,7 +287,7 @@ struct ConnectionView: View {
         HStack(alignment: .top, spacing: RD.Spacing.sm) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.red.opacity(0.8))
-                .font(.system(size: 13))
+                .font(.callout)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -304,26 +305,41 @@ struct ConnectionView: View {
     // MARK: - Connect Button
 
     private var connectButton: some View {
-        Button {
-            performConnect()
-        } label: {
-            HStack(spacing: RD.Spacing.sm) {
-                if isConnecting {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white)
-                } else {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 12))
+        HStack(spacing: RD.Spacing.sm) {
+            if isConnecting {
+                Button {
+                    connectTask?.cancel()
+                    connectTask = nil
+                    isConnecting = false
+                } label: {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity)
                 }
-                Text(isConnecting ? "Connecting\u{2026}" : "Connect")
+                .buttonStyle(RDButtonStyle(isProminent: false))
+                .keyboardShortcut(.cancelAction)
             }
-            .frame(maxWidth: .infinity)
+
+            Button {
+                performConnect()
+            } label: {
+                HStack(spacing: RD.Spacing.sm) {
+                    if isConnecting {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "bolt.fill")
+                            .font(.caption)
+                    }
+                    Text(isConnecting ? "Connecting\u{2026}" : "Connect")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(RDButtonStyle(isProminent: true))
+            .disabled(!canConnect)
+            .opacity(canConnect ? 1 : 0.4)
+            .keyboardShortcut(.defaultAction)
         }
-        .buttonStyle(RDButtonStyle(isProminent: true))
-        .disabled(!canConnect)
-        .opacity(canConnect ? 1 : 0.4)
-        .keyboardShortcut(.defaultAction)
         .padding(.top, RD.Spacing.xs)
     }
 
@@ -349,7 +365,7 @@ struct ConnectionView: View {
             UserDefaults.standard.set(sshKeyPath, forKey: DefaultsKey.lastSSHKeyPath)
         }
 
-        Task {
+        connectTask = Task {
             switch authMode {
             case .password:
                 await sftpService.connect(host: host, username: username, password: password)
@@ -362,6 +378,7 @@ struct ConnectionView: View {
                 )
             }
             isConnecting = false
+            connectTask = nil
         }
     }
 
