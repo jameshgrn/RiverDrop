@@ -164,47 +164,56 @@ struct ConnectionView: View {
     private var authModePicker: some View {
         HStack(spacing: 0) {
             ForEach(AuthMode.allCases, id: \.self) { mode in
-                let isDisabled = disabledAuthModes.contains(mode)
-                Button {
-                    guard !isDisabled else { return }
-                    withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
-                        authMode = mode
-                    }
-                } label: {
-                    HStack(spacing: RD.Spacing.xs) {
-                        Image(systemName: authModeIcon(mode))
-                            .font(.caption2)
-                        Text(mode.rawValue)
-                            .font(.callout.weight(.medium))
-                    }
-                    .foregroundStyle(
-                        isDisabled ? .quaternary :
-                            authMode == mode ? .white : .secondary
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, RD.Spacing.sm)
-                    .background {
-                        if authMode == mode, !isDisabled {
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.riverPrimary, .riverGlow],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .matchedGeometryEffect(id: "authPill", in: authPickerNS)
-                                .shadow(color: .riverPrimary.opacity(0.3), radius: 6, y: 2)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(isDisabled)
-                .help(isDisabled ? KeyboardInteractiveAuth.unsupportedReason : "")
+                authModeButton(mode)
             }
         }
         .padding(3)
         .background(Color.primary.opacity(0.06), in: Capsule())
+    }
+
+    private func authModeButton(_ mode: AuthMode) -> some View {
+        let isDisabled = disabledAuthModes.contains(mode)
+        let isSelected = authMode == mode
+        return Button {
+            guard !isDisabled else { return }
+            withAnimation(.spring(response: 0.16, dampingFraction: 0.82)) {
+                authMode = mode
+            }
+        } label: {
+            authModeLabel(mode: mode, isSelected: isSelected, isDisabled: isDisabled)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .help(isDisabled ? KeyboardInteractiveAuth.unsupportedReason : "")
+    }
+
+    private func authModeLabel(mode: AuthMode, isSelected: Bool, isDisabled: Bool) -> some View {
+        HStack(spacing: RD.Spacing.xs) {
+            Image(systemName: authModeIcon(mode))
+                .font(.caption2)
+            Text(mode.rawValue)
+                .font(.callout.weight(.medium))
+        }
+        .foregroundStyle(
+            isDisabled ? AnyShapeStyle(.quaternary) :
+                isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary)
+        )
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, RD.Spacing.sm)
+        .background {
+            if isSelected, !isDisabled {
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [.riverPrimary, .riverGlow],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .matchedGeometryEffect(id: "authPill", in: authPickerNS)
+                    .shadow(color: .riverPrimary.opacity(0.3), radius: 6, y: 2)
+            }
+        }
     }
 
     private func authModeIcon(_ mode: AuthMode) -> String {

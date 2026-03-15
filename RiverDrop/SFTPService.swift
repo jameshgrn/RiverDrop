@@ -265,7 +265,7 @@ final class SFTPService {
         while reconnectionAttempt < Self.maxReconnectAttempts, isConnected {
             reconnectionAttempt += 1
             let delay = min(pow(2.0, Double(reconnectionAttempt)), Self.maxBackoffSeconds)
-            sftpLogger.info("Reconnection attempt \(reconnectionAttempt)/\(Self.maxReconnectAttempts) in \(delay)s")
+            sftpLogger.info("Reconnection attempt \(self.reconnectionAttempt)/\(Self.maxReconnectAttempts) in \(delay)s")
 
             do {
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -303,7 +303,7 @@ final class SFTPService {
                 sftpLogger.info("Reconnection succeeded")
                 return
             } catch {
-                sftpLogger.warning("Reconnection attempt \(reconnectionAttempt) failed: \(error.localizedDescription)")
+                sftpLogger.warning("Reconnection attempt \(self.reconnectionAttempt) failed: \(error.localizedDescription)")
             }
         }
 

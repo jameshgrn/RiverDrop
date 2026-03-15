@@ -172,7 +172,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
 
     /// Fuzzy match scoring. Mirrors the existing `fuzzyMatch` in MainView.swift
     /// but operates on pre-lowercased strings.
-    private static func fuzzyScore(pattern: String, text: String) -> Int {
+    nonisolated private static func fuzzyScore(pattern: String, text: String) -> Int {
         guard !pattern.isEmpty else { return 1 }
 
         var patternIdx = pattern.startIndex
