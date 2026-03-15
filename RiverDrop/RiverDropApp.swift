@@ -23,6 +23,20 @@ struct RiverDropApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
+                #if DEBUG
+                NavigationSplitView {
+                    SidebarView(selectedServerID: $selectedServerID)
+                } detail: {
+                    if sftpService.isConnected {
+                        MainView()
+                    } else if let serverID = selectedServerID,
+                              let server = serverStore.servers.first(where: { $0.id == serverID }) {
+                        ConnectionView(prefill: server)
+                    } else {
+                        ConnectionView()
+                    }
+                }
+                #else
                 if licenseManager.isLicensed {
                     NavigationSplitView {
                         SidebarView(selectedServerID: $selectedServerID)
@@ -39,6 +53,7 @@ struct RiverDropApp: App {
                 } else {
                     LicenseView()
                 }
+                #endif
             }
             .environment(licenseManager)
             .environment(sftpService)
