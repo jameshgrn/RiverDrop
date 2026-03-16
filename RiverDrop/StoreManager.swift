@@ -141,8 +141,25 @@ final class LicenseManager {
             // Try online re-validation
             do {
                 try await performValidation(key: payload.key)
+            } catch let error as LicenseValidationError {
+                switch error {
+                case .refunded, .chargebacked, .invalidKey:
+                    // Definitive rejection — no grace period
+                    isLicensed = false
+                    validationError = error.errorDescription
+                    try? LicenseKeychainHelper.delete()
+                case .networkError, .serverError:
+                    // Offline grace: accept if validated within the last 7 days
+                    let elapsed = Date().timeIntervalSince(lastValidated)
+                    if elapsed < Self.offlineGraceDays {
+                        isLicensed = true
+                    } else {
+                        isLicensed = false
+                        validationError = "License re-validation failed and offline grace period expired."
+                    }
+                }
             } catch {
-                // Offline grace: accept if validated within the last 7 days
+                // Unknown error — treat as network failure, apply grace
                 let elapsed = Date().timeIntervalSince(lastValidated)
                 if elapsed < Self.offlineGraceDays {
                     isLicensed = true

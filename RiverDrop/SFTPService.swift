@@ -379,15 +379,14 @@ final class SFTPService {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
 
-        do {
-            try process.run()
-        } catch {
-            return false
-        }
-
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { proc in
                 continuation.resume(returning: proc.terminationStatus == 0)
+            }
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(returning: false)
             }
         }
     }
