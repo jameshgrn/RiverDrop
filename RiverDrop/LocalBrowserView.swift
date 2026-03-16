@@ -30,9 +30,15 @@ struct LocalBrowserView: View {
     @Binding var stagedUploads: [StagedItem]
     @AppStorage(DefaultsKey.showHiddenLocalFiles) private var showHiddenFiles = false
     @State private var savedBookmarks: [SavedBookmark] = []
+    @State private var searchIndex = DirectorySearchIndex<LocalFileItem>()
+    @State private var searchResults: [LocalFileItem] = []
+    @State private var searchDebounceTask: Task<Void, Never>?
+    @FocusState private var isSearchFieldFocused: Bool
 
     private var filteredFiles: [LocalFileItem] {
-        fuzzyFilter(items: files, query: searchText) { $0.filename }
+        searchText.trimmingCharacters(in: .whitespaces).isEmpty
+            ? files
+            : searchResults
     }
 
     private var displayedFiles: [LocalFileItem] {
@@ -41,6 +47,19 @@ struct LocalBrowserView: View {
 
     private var hasMoreFiles: Bool {
         localDisplayLimit < filteredFiles.count
+    }
+
+    private var localSearchStatusText: String {
+        if searchIndex.isSearching {
+            return "Searching \(searchIndex.indexedCount) files\u{2026}"
+        }
+        if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "\(filteredFiles.count) of \(files.count) files"
+        }
+        if hasMoreFiles {
+            return "\(displayedFiles.count)/\(filteredFiles.count)"
+        }
+        return "\(filteredFiles.count) items"
     }
 
     private var selectedFiles: [LocalFileItem] {
@@ -65,6 +84,9 @@ struct LocalBrowserView: View {
                 searchText: $searchText,
                 showHiddenFiles: $showHiddenFiles,
                 savedBookmarks: $savedBookmarks,
+                isSearchFieldFocused: $isSearchFieldFocused,
+                searchStatusText: localSearchStatusText,
+                isSearching: searchIndex.isSearching,
                 onGoUp: { navigateTo(localCurrentDirectory.deletingLastPathComponent()) },
                 onRefresh: { loadDirectory() },
                 onNavigateToBookmark: { navigateToBookmark(path: $0) },
@@ -137,13 +159,42 @@ struct LocalBrowserView: View {
         .onChange(of: recentlyDownloaded) { _, _ in
             loadDirectory()
         }
-        .onChange(of: searchText) { _, _ in
+        .onChange(of: searchText) { _, newQuery in
             localDisplayLimit = 200
+            searchDebounceTask?.cancel()
+            let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                searchResults = []
+                searchIndex.cancel()
+                return
+            }
+            searchDebounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                await searchIndex.search(query: trimmed)
+                guard !Task.isCancelled else { return }
+                searchResults = searchIndex.results
+            }
         }
         .onChange(of: showHiddenFiles) { _, _ in
             selectedIDs = []
             localDisplayLimit = 200
             loadDirectory()
+        }
+        .background {
+            Button("") { isSearchFieldFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .onKeyPress(.escape) {
+            if isSearchFieldFocused || !searchText.isEmpty {
+                searchText = ""
+                isSearchFieldFocused = false
+                return .handled
+            }
+            return .ignored
         }
         .onDisappear {
             stopSecurityScopedAccess()
@@ -239,7 +290,7 @@ struct LocalBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 FileIconView(filename: file.filename, isDirectory: true)
 
-                Text(file.filename)
+                HighlightedText(text: file.filename, matchedRanges: [], baseFont: .body)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
@@ -308,7 +359,7 @@ struct LocalBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 FileIconView(filename: file.filename, isDirectory: false)
 
-                Text(file.filename)
+                HighlightedText(text: file.filename, matchedRanges: [], baseFont: .body)
                     .lineLimit(1)
 
                 if isNew {
@@ -660,6 +711,7 @@ struct LocalBrowserView: View {
             files = []
             sftpService.errorMessage = "List local directory failed for \(localCurrentDirectory.path): \(error.localizedDescription). Suggested fix: check local permissions and confirm the folder still exists."
         }
+        searchIndex.build(from: files) { $0.filename }
     }
 
     // MARK: - Upload / Selection Actions

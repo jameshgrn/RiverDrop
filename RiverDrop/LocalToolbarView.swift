@@ -17,6 +17,9 @@ struct LocalToolbarView: View {
     @Binding var searchText: String
     @Binding var showHiddenFiles: Bool
     @Binding var savedBookmarks: [SavedBookmark]
+    var isSearchFieldFocused: FocusState<Bool>.Binding
+    var searchStatusText: String
+    var isSearching: Bool
 
     // MARK: - Actions
 
@@ -79,10 +82,8 @@ struct LocalToolbarView: View {
             overflowMenu
 
             StatusBadge(
-                text: hasMoreFiles
-                    ? "\(displayedCount)/\(filteredCount)"
-                    : "\(filteredCount) items",
-                color: .secondary
+                text: searchStatusText,
+                color: searchText.isEmpty ? .secondary : .riverPrimary
             )
         }
         .padding(.horizontal, RD.Spacing.sm)
@@ -146,13 +147,19 @@ struct LocalToolbarView: View {
         HStack(spacing: 4) {
             Image(systemName: "magnifyingglass")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(isSearchFieldFocused.wrappedValue ? Color.accentColor : Color.secondary.opacity(0.3))
             TextField("Filter\u{2026}", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.caption)
+                .focused(isSearchFieldFocused)
+            if isSearching {
+                ProgressView()
+                    .controlSize(.mini)
+            }
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
+                    isSearchFieldFocused.wrappedValue = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.caption2)
@@ -164,6 +171,12 @@ struct LocalToolbarView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+        .overlay(
+            isSearchFieldFocused.wrappedValue
+                ? RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                    .strokeBorder(Color.accentColor.opacity(0.5), lineWidth: 1)
+                : nil
+        )
     }
 
     // MARK: - Dry Run Button

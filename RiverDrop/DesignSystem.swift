@@ -167,6 +167,47 @@ struct RDButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Highlighted Text
+
+struct HighlightedText: View {
+    let text: String
+    let matchedRanges: [Range<String.Index>]
+    let baseFont: Font
+
+    var body: some View {
+        if matchedRanges.isEmpty {
+            Text(text).font(baseFont)
+        } else {
+            buildHighlightedText().font(baseFont)
+        }
+    }
+
+    private func buildHighlightedText() -> Text {
+        var result = Text("")
+        var currentIndex = text.startIndex
+
+        let sorted = matchedRanges
+            .filter { $0.lowerBound >= text.startIndex && $0.upperBound <= text.endIndex }
+            .sorted { $0.lowerBound < $1.lowerBound }
+
+        for range in sorted {
+            if currentIndex < range.lowerBound {
+                result = result + Text(text[currentIndex..<range.lowerBound])
+            }
+            result = result + Text(text[range])
+                .bold()
+                .foregroundColor(.accentColor)
+            currentIndex = range.upperBound
+        }
+
+        if currentIndex < text.endIndex {
+            result = result + Text(text[currentIndex..<text.endIndex])
+        }
+
+        return result
+    }
+}
+
 // MARK: - Status Badge
 
 struct StatusBadge: View {

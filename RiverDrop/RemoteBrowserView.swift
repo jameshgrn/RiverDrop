@@ -23,6 +23,10 @@ struct RemoteBrowserView: View {
     @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
     @State private var hoveredFileID: RemoteFileItem.ID?
     @State private var isRemoteDropTargeted = false
+    @State private var searchIndex = DirectorySearchIndex<RemoteFileItem>()
+    @State private var searchResults: [RemoteFileItem] = []
+    @State private var searchDebounceTask: Task<Void, Never>?
+    @FocusState private var isSearchFieldFocused: Bool
 
     enum RemoteRoot: String, CaseIterable {
         case home = "Home"
@@ -38,7 +42,9 @@ struct RemoteBrowserView: View {
     }
 
     private var filteredRemoteFiles: [RemoteFileItem] {
-        fuzzyFilter(items: visibleRemoteFiles, query: remoteSearchText) { $0.filename }
+        remoteSearchText.trimmingCharacters(in: .whitespaces).isEmpty
+            ? visibleRemoteFiles
+            : searchResults
     }
 
     private var displayedRemoteFiles: [RemoteFileItem] {
@@ -47,6 +53,19 @@ struct RemoteBrowserView: View {
 
     private var hasMoreRemoteFiles: Bool {
         remoteDisplayLimit < filteredRemoteFiles.count
+    }
+
+    private var remoteSearchStatusText: String {
+        if searchIndex.isSearching {
+            return "Searching \(searchIndex.indexedCount) files\u{2026}"
+        }
+        if !remoteSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "\(filteredRemoteFiles.count) of \(visibleRemoteFiles.count) files"
+        }
+        if hasMoreRemoteFiles {
+            return "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
+        }
+        return "\(filteredRemoteFiles.count) items"
     }
 
     var selectedRemoteFiles: [RemoteFileItem] {
@@ -159,8 +178,31 @@ struct RemoteBrowserView: View {
                 )
             }
         }
-        .onChange(of: remoteSearchText) { _, _ in
+        .onChange(of: remoteSearchText) { _, newQuery in
             remoteDisplayLimit = 200
+            searchDebounceTask?.cancel()
+            let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                searchResults = []
+                searchIndex.cancel()
+                return
+            }
+            searchDebounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                await searchIndex.search(query: trimmed)
+                guard !Task.isCancelled else { return }
+                searchResults = searchIndex.results
+            }
+        }
+        .onChange(of: sftpService.files) { _, _ in
+            searchIndex.build(from: visibleRemoteFiles) { $0.filename }
+            if !remoteSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                Task {
+                    await searchIndex.search(query: remoteSearchText)
+                    searchResults = searchIndex.results
+                }
+            }
         }
         .onChange(of: showHiddenRemoteFiles) { _, showHidden in
             if !showHidden {
@@ -168,6 +210,22 @@ struct RemoteBrowserView: View {
                 remoteSelectedIDs = remoteSelectedIDs.intersection(visibleIDs)
             }
             remoteDisplayLimit = 200
+            searchIndex.build(from: visibleRemoteFiles) { $0.filename }
+        }
+        .background {
+            Button("") { isSearchFieldFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .onKeyPress(.escape) {
+            if isSearchFieldFocused || !remoteSearchText.isEmpty {
+                remoteSearchText = ""
+                isSearchFieldFocused = false
+                return .handled
+            }
+            return .ignored
         }
     }
 
@@ -217,13 +275,19 @@ struct RemoteBrowserView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(isSearchFieldFocused ? Color.accentColor : Color.secondary.opacity(0.3))
                     TextField("Filter\u{2026}", text: $remoteSearchText)
                         .textFieldStyle(.plain)
                         .font(.caption)
+                        .focused($isSearchFieldFocused)
+                    if searchIndex.isSearching {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
                     if !remoteSearchText.isEmpty {
                         Button {
                             remoteSearchText = ""
+                            isSearchFieldFocused = false
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.caption2)
@@ -235,6 +299,12 @@ struct RemoteBrowserView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: RD.cornerRadiusSmall))
+                .overlay(
+                    isSearchFieldFocused
+                        ? RoundedRectangle(cornerRadius: RD.cornerRadiusSmall)
+                            .strokeBorder(Color.accentColor.opacity(0.5), lineWidth: 1)
+                        : nil
+                )
 
                 // Dry run
                 Button {
@@ -293,10 +363,8 @@ struct RemoteBrowserView: View {
                 .accessibilityLabel("More actions")
 
                 StatusBadge(
-                    text: hasMoreRemoteFiles
-                        ? "\(displayedRemoteFiles.count)/\(filteredRemoteFiles.count)"
-                        : "\(filteredRemoteFiles.count) items",
-                    color: .secondary
+                    text: remoteSearchStatusText,
+                    color: remoteSearchText.isEmpty ? .secondary : .riverPrimary
                 )
             }
             .padding(.horizontal, RD.Spacing.sm)
@@ -525,8 +593,7 @@ struct RemoteBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 FileIconView(filename: file.filename, isDirectory: true, size: 15)
 
-                Text(file.filename)
-                    .font(.callout)
+                HighlightedText(text: file.filename, matchedRanges: [], baseFont: .callout)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
@@ -567,8 +634,7 @@ struct RemoteBrowserView: View {
         return HStack(spacing: RD.Spacing.sm) {
             FileIconView(filename: file.filename, isDirectory: false, size: 15)
 
-            Text(file.filename)
-                .font(.callout)
+            HighlightedText(text: file.filename, matchedRanges: [], baseFont: .callout)
                 .lineLimit(1)
 
             Spacer()
