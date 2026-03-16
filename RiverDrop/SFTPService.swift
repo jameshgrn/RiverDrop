@@ -22,8 +22,8 @@ final class SFTPService {
     private(set) var connectedAuthConfig: SSHAuthConfig?
     private(set) var isReconnecting = false
     private(set) var reconnectionAttempt = 0
-    private var connectedProxyJump: String?
-    private var connectedPort = 22
+    private(set) var connectedProxyJump: String?
+    private(set) var connectedPort = 22
 
     var connectionMethodLabel: String {
         isConnected ? "SFTP" : "Disconnected"

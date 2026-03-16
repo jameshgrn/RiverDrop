@@ -43,8 +43,10 @@ final class SyncCoordinator {
                 remotePath: sftpService.currentPath,
                 localPath: localDir.path,
                 host: sftpService.connectedHost,
+                port: sftpService.connectedPort,
                 username: sftpService.connectedUsername,
-                auth: rsyncAuth
+                auth: rsyncAuth,
+                proxyJump: sftpService.connectedProxyJump
             )
             dryRunResult = result
         } catch is CancellationError {
@@ -79,8 +81,10 @@ final class SyncCoordinator {
                 localPath: localDir.path,
                 remotePath: sftpService.currentPath,
                 host: sftpService.connectedHost,
+                port: sftpService.connectedPort,
                 username: sftpService.connectedUsername,
-                auth: rsyncAuth
+                auth: rsyncAuth,
+                proxyJump: sftpService.connectedProxyJump
             )
             dryRunResult = result
         } catch is CancellationError {
@@ -126,8 +130,10 @@ final class SyncCoordinator {
                 remotePath: remotePath,
                 localPath: localDir.path,
                 host: host,
+                port: sftpService.connectedPort,
                 username: username,
-                auth: rsyncAuth
+                auth: rsyncAuth,
+                proxyJump: sftpService.connectedProxyJump
             ) { [weak self] progress in
                 Task { @MainActor in
                     self?.transferManager.updateProgress(id: itemID, progress: progress)
@@ -182,8 +188,10 @@ final class SyncCoordinator {
                 localPath: localDir.path,
                 remotePath: remotePath,
                 host: host,
+                port: sftpService.connectedPort,
                 username: username,
-                auth: rsyncAuth
+                auth: rsyncAuth,
+                proxyJump: sftpService.connectedProxyJump
             ) { [weak self] progress in
                 Task { @MainActor in
                     self?.transferManager.updateProgress(id: itemID, progress: progress)
@@ -254,8 +262,10 @@ final class SyncCoordinator {
                     remotePath: remotePath,
                     localPath: localDir.path,
                     host: host,
+                    port: sftpService.connectedPort,
                     username: username,
-                    auth: rsyncAuth
+                    auth: rsyncAuth,
+                    proxyJump: sftpService.connectedProxyJump
                 ) { [weak self] progress in
                     Task { @MainActor in
                         self?.transferManager.updateProgress(id: itemID, progress: progress)
@@ -309,8 +319,10 @@ final class SyncCoordinator {
                     localPath: localDir.path,
                     remotePath: remotePath,
                     host: host,
+                    port: sftpService.connectedPort,
                     username: username,
-                    auth: rsyncAuth
+                    auth: rsyncAuth,
+                    proxyJump: sftpService.connectedProxyJump
                 ) { [weak self] progress in
                     Task { @MainActor in
                         self?.transferManager.updateProgress(id: itemID, progress: progress)

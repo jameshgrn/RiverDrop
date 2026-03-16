@@ -37,8 +37,10 @@ final class RsyncTransfer: @unchecked Sendable {
         localPath: String,
         remotePath: String,
         host: String,
+        port: Int = 22,
         username: String,
         auth: RsyncAuth,
+        proxyJump: String? = nil,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         let destination = "\(username)@\(host):\(remotePath)"
@@ -46,7 +48,9 @@ final class RsyncTransfer: @unchecked Sendable {
             source: localPath,
             destination: destination,
             host: host,
+            port: port,
             auth: auth,
+            proxyJump: proxyJump,
             progressHandler: progressHandler
         )
     }
@@ -55,8 +59,10 @@ final class RsyncTransfer: @unchecked Sendable {
         remotePath: String,
         localPath: String,
         host: String,
+        port: Int = 22,
         username: String,
         auth: RsyncAuth,
+        proxyJump: String? = nil,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         let source = "\(username)@\(host):\(remotePath)"
@@ -64,7 +70,9 @@ final class RsyncTransfer: @unchecked Sendable {
             source: source,
             destination: localPath,
             host: host,
+            port: port,
             auth: auth,
+            proxyJump: proxyJump,
             progressHandler: progressHandler
         )
     }
@@ -73,8 +81,10 @@ final class RsyncTransfer: @unchecked Sendable {
         remotePath: String,
         localPath: String,
         host: String,
+        port: Int = 22,
         username: String,
         auth: RsyncAuth,
+        proxyJump: String? = nil,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         let sourcePath = remotePath.hasSuffix("/") ? remotePath : remotePath + "/"
@@ -84,7 +94,9 @@ final class RsyncTransfer: @unchecked Sendable {
             source: source,
             destination: dest,
             host: host,
+            port: port,
             auth: auth,
+            proxyJump: proxyJump,
             progressHandler: progressHandler
         )
     }
@@ -93,8 +105,10 @@ final class RsyncTransfer: @unchecked Sendable {
         localPath: String,
         remotePath: String,
         host: String,
+        port: Int = 22,
         username: String,
         auth: RsyncAuth,
+        proxyJump: String? = nil,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         let sourcePath = localPath.hasSuffix("/") ? localPath : localPath + "/"
@@ -104,7 +118,9 @@ final class RsyncTransfer: @unchecked Sendable {
             source: sourcePath,
             destination: destination,
             host: host,
+            port: port,
             auth: auth,
+            proxyJump: proxyJump,
             progressHandler: progressHandler
         )
     }
@@ -113,7 +129,9 @@ final class RsyncTransfer: @unchecked Sendable {
         source: String,
         destination: String,
         host: String,
+        port: Int = 22,
         auth: RsyncAuth,
+        proxyJump: String? = nil,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         guard let rsyncPath = Self.rsyncPath else {
@@ -127,6 +145,12 @@ final class RsyncTransfer: @unchecked Sendable {
         tempFiles.append(knownHostsPath)
 
         var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath.shellQuoted)"
+        if port != 22 {
+            sshCommand += " -p \(port)"
+        }
+        if let proxyJump {
+            sshCommand += " -J \(proxyJump.shellQuoted)"
+        }
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -220,7 +244,9 @@ final class RsyncTransfer: @unchecked Sendable {
         source: String,
         destination: String,
         host: String,
+        port: Int = 22,
         auth: RsyncAuth,
+        proxyJump: String? = nil,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
         guard let rsyncPath = Self.rsyncPath else {
@@ -234,6 +260,12 @@ final class RsyncTransfer: @unchecked Sendable {
         tempFiles.append(knownHostsPath)
 
         var sshCommand = "ssh -T -o Compression=no -o IPQoS=throughput -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath.shellQuoted)"
+        if port != 22 {
+            sshCommand += " -p \(port)"
+        }
+        if let proxyJump {
+            sshCommand += " -J \(proxyJump.shellQuoted)"
+        }
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]
@@ -328,32 +360,38 @@ final class RsyncTransfer: @unchecked Sendable {
         remotePath: String,
         localPath: String,
         host: String,
+        port: Int = 22,
         username: String,
-        auth: RsyncAuth
+        auth: RsyncAuth,
+        proxyJump: String? = nil
     ) async throws -> DryRunResult {
         let sourcePath = remotePath.hasSuffix("/") ? remotePath : remotePath + "/"
         let source = "\(username)@\(host):\(sourcePath)"
         let dest = localPath.hasSuffix("/") ? localPath : localPath + "/"
-        return try await runDryRun(source: source, destination: dest, host: host, auth: auth)
+        return try await runDryRun(source: source, destination: dest, host: host, port: port, auth: auth, proxyJump: proxyJump)
     }
 
     func dryRunUpload(
         localPath: String,
         remotePath: String,
         host: String,
+        port: Int = 22,
         username: String,
-        auth: RsyncAuth
+        auth: RsyncAuth,
+        proxyJump: String? = nil
     ) async throws -> DryRunResult {
         let sourcePath = localPath.hasSuffix("/") ? localPath : localPath + "/"
         let destination = "\(username)@\(host):\(remotePath)"
-        return try await runDryRun(source: sourcePath, destination: destination, host: host, auth: auth)
+        return try await runDryRun(source: sourcePath, destination: destination, host: host, port: port, auth: auth, proxyJump: proxyJump)
     }
 
     private func runDryRun(
         source: String,
         destination: String,
         host: String,
-        auth: RsyncAuth
+        port: Int = 22,
+        auth: RsyncAuth,
+        proxyJump: String? = nil
     ) async throws -> DryRunResult {
         guard let rsyncPath = Self.rsyncPath else {
             throw RsyncError.notInstalled
@@ -366,6 +404,12 @@ final class RsyncTransfer: @unchecked Sendable {
         tempFiles.append(knownHostsPath)
 
         var sshCommand = "ssh -T -o Compression=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=\(knownHostsPath.shellQuoted)"
+        if port != 22 {
+            sshCommand += " -p \(port)"
+        }
+        if let proxyJump {
+            sshCommand += " -J \(proxyJump.shellQuoted)"
+        }
         var environment: [String: String] = [
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
         ]

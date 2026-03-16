@@ -205,8 +205,10 @@ final class TransferManager {
                         localPath: localURL.path,
                         remotePath: remotePath,
                         host: sftpService.connectedHost,
+                        port: sftpService.connectedPort,
                         username: sftpService.connectedUsername,
-                        auth: rsyncAuth
+                        auth: rsyncAuth,
+                        proxyJump: sftpService.connectedProxyJump
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
@@ -361,8 +363,10 @@ final class TransferManager {
                         localPath: localURL.path,
                         remotePath: remotePath,
                         host: sftpService.connectedHost,
+                        port: sftpService.connectedPort,
                         username: sftpService.connectedUsername,
-                        auth: rsyncAuth
+                        auth: rsyncAuth,
+                        proxyJump: sftpService.connectedProxyJump
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
@@ -599,8 +603,10 @@ final class TransferManager {
                         remotePath: fullRemotePath,
                         localPath: localURL.path,
                         host: sftpService.connectedHost,
+                        port: sftpService.connectedPort,
                         username: sftpService.connectedUsername,
-                        auth: rsyncAuth
+                        auth: rsyncAuth,
+                        proxyJump: sftpService.connectedProxyJump
                     ) { [weak self] progress in
                         Task { @MainActor in
                             self?.updateProgress(id: itemID, progress: progress)
