@@ -3,17 +3,18 @@ import os
 
 private let searchLogger = Logger(subsystem: "com.riverdrop", category: "DirectorySearchIndex")
 
-/// Pre-built lowercase filename index for fast fuzzy search over large directories.
+/// Pre-built filename index for fast fuzzy search over large directories.
 ///
 /// Designed to work with both `RemoteFileItem` and `LocalFileItem` (or any type that
 /// has a filename). Build the index once after loading a directory, then query it
 /// repeatedly as the user types.
 ///
 /// Features:
-/// - Pre-lowercased filename cache avoids repeated String.lowercased() per keystroke.
+/// - Pre-cached original filenames avoid repeated closure calls per keystroke.
 /// - Cancellable: new queries cancel in-flight searches automatically.
-/// - Progressive results: the callback fires periodically during search.
+/// - Progressive results: scannedCount updates periodically during search.
 /// - Runs search work on a detached task to keep the main actor responsive.
+/// - Returns `SearchResult` with matched ranges for UI highlighting.
 ///
 /// Usage:
 ///   let index = DirectorySearchIndex<RemoteFileItem>()
@@ -23,10 +24,17 @@ private let searchLogger = Logger(subsystem: "com.riverdrop", category: "Directo
 @Observable
 final class DirectorySearchIndex<Item: Identifiable & Sendable> {
 
+    // MARK: - Search Result
+
+    struct SearchResult: Sendable {
+        let item: Item
+        let matchedRanges: [Range<String.Index>]
+    }
+
     // MARK: - Published state
 
     /// The current search results, updated progressively.
-    private(set) var results: [Item] = []
+    private(set) var results: [SearchResult] = []
 
     /// Whether a search is currently running.
     private(set) var isSearching = false
@@ -39,7 +47,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
 
     // MARK: - Internal
 
-    /// Each entry pairs an item with its pre-lowercased filename.
+    /// Each entry pairs an item with its original filename.
     private var entries: [Entry] = []
 
     /// Currently running search task -- cancelled when a new search starts.
@@ -47,7 +55,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
 
     private struct Entry: Sendable {
         let item: Item
-        let lowercaseName: String
+        let name: String
     }
 
     // MARK: - Build
@@ -59,7 +67,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
     ///   - nameKeyPath: Closure that extracts the filename from an item.
     func build(from items: [Item], name nameKeyPath: @escaping @Sendable (Item) -> String) {
         cancel()
-        entries = items.map { Entry(item: $0, lowercaseName: nameKeyPath($0).lowercased()) }
+        entries = items.map { Entry(item: $0, name: nameKeyPath($0)) }
         indexedCount = items.count
         results = []
         scannedCount = 0
@@ -86,9 +94,9 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
     ///   - query: The user's search text. Empty string clears results.
     ///   - batchSize: How many items to process before yielding back to the main actor.
     ///                Smaller = more responsive UI, larger = faster total search.
-    /// - Returns: The final sorted array of matching items.
+    /// - Returns: The final sorted array of matching items with match ranges.
     @discardableResult
-    func search(query: String, batchSize: Int = 5_000) async -> [Item] {
+    func search(query: String, batchSize: Int = 5_000) async -> [SearchResult] {
         // Cancel previous search.
         searchTask?.cancel()
         searchTask = nil
@@ -106,32 +114,27 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
         results = []
 
         let snapshot = entries
-        let pattern = trimmed.lowercased()
+        let pattern = trimmed
 
         // Run the scan on a detached task to avoid blocking the main actor.
-        let task = Task<[ScoredItem], Never>.detached(priority: .userInitiated) { [pattern] in
-            var scored: [ScoredItem] = []
-            scored.reserveCapacity(snapshot.count / 4) // rough estimate
+        let task = Task<[ScoredResult], Never>.detached(priority: .userInitiated) { [pattern] in
+            var scored: [ScoredResult] = []
+            scored.reserveCapacity(snapshot.count / 4)
 
             for (index, entry) in snapshot.enumerated() {
                 if Task.isCancelled { return [] }
 
-                let score = Self.fuzzyScore(pattern: pattern, text: entry.lowercaseName)
-                if score > 0 {
-                    scored.append(ScoredItem(item: entry.item, score: score))
+                if let match = fuzzyMatch(pattern: pattern, text: entry.name) {
+                    scored.append(ScoredResult(
+                        item: entry.item,
+                        score: match.score,
+                        matchedRanges: match.matchedRanges
+                    ))
                 }
 
                 // Yield progress periodically.
                 if (index + 1).isMultiple(of: batchSize) {
                     let currentIndex = index + 1
-                    await MainActor.run {
-                        // Guard against stale updates from a cancelled task.
-                        guard !Task.isCancelled else { return }
-                        // Update scanned count on main actor.
-                        // We don't update results mid-scan to avoid flicker;
-                        // only scannedCount for the "Searching X files..." indicator.
-                    }
-                    // Use a non-isolated closure to update the actor state.
                     await Self.updateScannedCount(on: self, count: currentIndex)
                 }
             }
@@ -146,7 +149,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
         searchTask = Task {
             let scored = await task.value
             guard !Task.isCancelled else { return }
-            results = scored.map(\.item)
+            results = scored.map { SearchResult(item: $0.item, matchedRanges: $0.matchedRanges) }
             scannedCount = snapshot.count
             isSearching = false
         }
@@ -163,58 +166,12 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
         isSearching = false
     }
 
-    // MARK: - Scoring
+    // MARK: - Internal Types
 
-    private struct ScoredItem: Sendable {
+    private struct ScoredResult: Sendable {
         let item: Item
         let score: Int
-    }
-
-    /// Fuzzy match scoring. Mirrors the existing `fuzzyMatch` in MainView.swift
-    /// but operates on pre-lowercased strings.
-    nonisolated private static func fuzzyScore(pattern: String, text: String) -> Int {
-        guard !pattern.isEmpty else { return 1 }
-
-        var patternIdx = pattern.startIndex
-        var score = 0
-        var lastMatchIndex: String.Index?
-        var consecutive = 0
-
-        for textIdx in text.indices {
-            guard patternIdx < pattern.endIndex else { break }
-            if text[textIdx] == pattern[patternIdx] {
-                score += 1
-
-                // Bonus for consecutive matches.
-                if let last = lastMatchIndex, text.index(after: last) == textIdx {
-                    consecutive += 1
-                    score += consecutive
-                } else {
-                    consecutive = 0
-                }
-
-                // Bonus for match at start or after separator.
-                if textIdx == text.startIndex {
-                    score += 3
-                } else {
-                    let prev = text[text.index(before: textIdx)]
-                    if prev == "." || prev == "_" || prev == "-" || prev == "/" || prev == " " {
-                        score += 2
-                    }
-                }
-
-                lastMatchIndex = textIdx
-                patternIdx = pattern.index(after: patternIdx)
-            }
-        }
-
-        // All pattern characters must be matched.
-        guard patternIdx == pattern.endIndex else { return 0 }
-
-        // Fallback: if fuzzy didn't match, try substring containment.
-        // (Not needed here since fuzzy matched, but included for API parity
-        //  with the existing fuzzyFilter which falls back to .contains.)
-        return score
+        let matchedRanges: [Range<String.Index>]
     }
 
     /// Helper to update scanned count from a detached task.
