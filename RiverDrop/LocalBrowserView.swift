@@ -32,6 +32,7 @@ struct LocalBrowserView: View {
     @State private var savedBookmarks: [SavedBookmark] = []
     @State private var searchIndex = DirectorySearchIndex<LocalFileItem>()
     @State private var searchResults: [LocalFileItem] = []
+    @State private var searchMatchRanges: [LocalFileItem.ID: [Range<String.Index>]] = [:]
     @State private var searchDebounceTask: Task<Void, Never>?
     @FocusState private var isSearchFieldFocused: Bool
 
@@ -165,6 +166,7 @@ struct LocalBrowserView: View {
             let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
                 searchResults = []
+                searchMatchRanges = [:]
                 searchIndex.cancel()
                 return
             }
@@ -173,7 +175,10 @@ struct LocalBrowserView: View {
                 guard !Task.isCancelled else { return }
                 await searchIndex.search(query: trimmed)
                 guard !Task.isCancelled else { return }
-                searchResults = searchIndex.results
+                searchResults = searchIndex.results.map(\.item)
+                searchMatchRanges = Dictionary(
+                    uniqueKeysWithValues: searchIndex.results.map { ($0.item.id, $0.matchedRanges) }
+                )
             }
         }
         .onChange(of: showHiddenFiles) { _, _ in
@@ -290,7 +295,7 @@ struct LocalBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 FileIconView(filename: file.filename, isDirectory: true)
 
-                HighlightedText(text: file.filename, matchedRanges: [], baseFont: .body)
+                HighlightedText(text: file.filename, matchedRanges: searchMatchRanges[file.id] ?? [], baseFont: .body)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
@@ -359,7 +364,7 @@ struct LocalBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 FileIconView(filename: file.filename, isDirectory: false)
 
-                HighlightedText(text: file.filename, matchedRanges: [], baseFont: .body)
+                HighlightedText(text: file.filename, matchedRanges: searchMatchRanges[file.id] ?? [], baseFont: .body)
                     .lineLimit(1)
 
                 if isNew {

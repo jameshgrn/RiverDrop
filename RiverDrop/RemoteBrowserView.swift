@@ -25,6 +25,7 @@ struct RemoteBrowserView: View {
     @State private var isRemoteDropTargeted = false
     @State private var searchIndex = DirectorySearchIndex<RemoteFileItem>()
     @State private var searchResults: [RemoteFileItem] = []
+    @State private var searchMatchRanges: [RemoteFileItem.ID: [Range<String.Index>]] = [:]
     @State private var searchDebounceTask: Task<Void, Never>?
     @FocusState private var isSearchFieldFocused: Bool
 
@@ -184,6 +185,7 @@ struct RemoteBrowserView: View {
             let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
                 searchResults = []
+                searchMatchRanges = [:]
                 searchIndex.cancel()
                 return
             }
@@ -192,7 +194,10 @@ struct RemoteBrowserView: View {
                 guard !Task.isCancelled else { return }
                 await searchIndex.search(query: trimmed)
                 guard !Task.isCancelled else { return }
-                searchResults = searchIndex.results
+                searchResults = searchIndex.results.map(\.item)
+                searchMatchRanges = Dictionary(
+                    uniqueKeysWithValues: searchIndex.results.map { ($0.item.id, $0.matchedRanges) }
+                )
             }
         }
         .onChange(of: sftpService.files) { _, _ in
@@ -200,7 +205,10 @@ struct RemoteBrowserView: View {
             if !remoteSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
                 Task {
                     await searchIndex.search(query: remoteSearchText)
-                    searchResults = searchIndex.results
+                    searchResults = searchIndex.results.map(\.item)
+                    searchMatchRanges = Dictionary(
+                        uniqueKeysWithValues: searchIndex.results.map { ($0.item.id, $0.matchedRanges) }
+                    )
                 }
             }
         }
@@ -593,7 +601,7 @@ struct RemoteBrowserView: View {
             HStack(spacing: RD.Spacing.sm) {
                 FileIconView(filename: file.filename, isDirectory: true, size: 15)
 
-                HighlightedText(text: file.filename, matchedRanges: [], baseFont: .callout)
+                HighlightedText(text: file.filename, matchedRanges: searchMatchRanges[file.id] ?? [], baseFont: .callout)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
@@ -634,7 +642,7 @@ struct RemoteBrowserView: View {
         return HStack(spacing: RD.Spacing.sm) {
             FileIconView(filename: file.filename, isDirectory: false, size: 15)
 
-            HighlightedText(text: file.filename, matchedRanges: [], baseFont: .callout)
+            HighlightedText(text: file.filename, matchedRanges: searchMatchRanges[file.id] ?? [], baseFont: .callout)
                 .lineLimit(1)
 
             Spacer()
