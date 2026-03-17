@@ -37,9 +37,6 @@ NOTARY_KEY_PATH="${NOTARY_KEY_PATH:?Set NOTARY_KEY_PATH to the path of your .p8 
 # --- Derived ------------------------------------------------------------------
 
 APP_PATH="${EXPORT_DIR}/${SCHEME}.app"
-VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || echo "0.0.0")
-DMG_NAME="${SCHEME}-${VERSION}.dmg"
-DMG_PATH="${BUILD_DIR}/${DMG_NAME}"
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -72,6 +69,7 @@ xcodebuild clean archive \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
   -archivePath "$ARCHIVE_PATH" \
+  CODE_SIGN_STYLE="Manual" \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   CODE_SIGN_IDENTITY="Developer ID Application" \
   OTHER_CODE_SIGN_FLAGS="--timestamp" |
