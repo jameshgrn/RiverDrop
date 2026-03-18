@@ -142,7 +142,15 @@ final class SFTPService {
             let connectSession = session
             let serverHost = server.host
             let serverPort = server.port
-            let serverProxyJump = server.proxyJump!
+            guard let serverProxyJump = server.proxyJump else {
+                errorMessage = formatError(
+                    operation: "connect via proxy",
+                    input: "\(server.user)@\(server.host)",
+                    error: SFTPError.notConnected,
+                    suggestedFix: "proxy jump configuration is missing"
+                )
+                return
+            }
             let serverUser = server.user
 
             let resolvedHome = try await withThrowingTaskGroup(of: String.self) { group in
@@ -202,7 +210,7 @@ final class SFTPService {
                 : "verify bastion host is reachable and credentials are valid for both hops"
             errorMessage = formatError(
                 operation: "connect via proxy",
-                input: "\(server.user)@\(server.host) (via \(server.proxyJump!))",
+                input: "\(server.user)@\(server.host) (via \(server.proxyJump ?? "unknown"))",
                 error: error,
                 suggestedFix: fix
             )
