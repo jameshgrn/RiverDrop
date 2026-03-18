@@ -220,7 +220,9 @@ final class LicenseManager {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let body = "product_id=\(Self.productID)&license_key=\(key)"
+        let encodedProduct = Self.productID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? Self.productID
+        let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+        let body = "product_id=\(encodedProduct)&license_key=\(encodedKey)"
         request.httpBody = body.data(using: .utf8)
 
         let data: Data
