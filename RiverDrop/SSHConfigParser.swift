@@ -4,7 +4,7 @@ enum SSHConfigParser {
 
     /// Parse ~/.ssh/config and resolve each host alias via `ssh -G`.
     /// Returns empty array if ~/.ssh/config doesn't exist.
-    static func parse() -> [ServerEntry] {
+    static func parse() async -> [ServerEntry] {
         let configPath = NSHomeDirectory() + "/.ssh/config"
         guard FileManager.default.fileExists(atPath: configPath),
               let contents = try? String(contentsOfFile: configPath, encoding: .utf8)
@@ -13,7 +13,18 @@ enum SSHConfigParser {
         }
 
         let aliases = extractHostAliases(from: contents)
-        return aliases.compactMap { resolve(alias: $0) }
+        return await withTaskGroup(of: ServerEntry?.self) { group in
+            for alias in aliases {
+                group.addTask {
+                    await resolve(alias: alias)
+                }
+            }
+            var results: [ServerEntry] = []
+            for await entry in group {
+                if let entry { results.append(entry) }
+            }
+            return results
+        }
     }
 
     // MARK: - Private
@@ -41,7 +52,7 @@ enum SSHConfigParser {
     }
 
     /// Resolve a host alias via `ssh -G <alias>` and build a ServerEntry.
-    private static func resolve(alias: String) -> ServerEntry? {
+    private static func resolve(alias: String) async -> ServerEntry? {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
@@ -54,8 +65,13 @@ enum SSHConfigParser {
         } catch {
             return nil
         }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
+
+        let status = await withCheckedContinuation { continuation in
+            process.terminationHandler = { proc in
+                continuation.resume(returning: proc.terminationStatus)
+            }
+        }
+        guard status == 0 else { return nil }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let output = String(data: data, encoding: .utf8) else { return nil }

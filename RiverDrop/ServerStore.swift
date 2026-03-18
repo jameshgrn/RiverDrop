@@ -27,8 +27,10 @@ final class ServerStore {
     // MARK: - Public
 
     func refresh() {
-        configServers = SSHConfigParser.parse()
-        mergeServers()
+        Task {
+            configServers = await SSHConfigParser.parse()
+            mergeServers()
+        }
     }
 
     func addManual(
