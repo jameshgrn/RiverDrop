@@ -83,4 +83,8 @@ final class LocalFileSearch: ObservableObject {
         process = nil
         isSearching = false
     }
+
+    deinit {
+        process?.terminate()
+    }
 }

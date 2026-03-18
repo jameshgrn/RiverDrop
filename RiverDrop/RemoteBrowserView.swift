@@ -494,6 +494,15 @@ struct RemoteBrowserView: View {
                         }
                     }
                 }
+                let currentFolderPaths: Set<String> = {
+                    let base = sftpService.currentPath.hasSuffix("/")
+                        ? sftpService.currentPath
+                        : sftpService.currentPath + "/"
+                    return Set(filteredRemoteFiles.map { base + $0.filename })
+                }()
+                let deepResults = remoteFileSearch.results.filter {
+                    !currentFolderPaths.contains($0.absolutePath)
+                }
                 Section {
                     if remoteSearchIsActive && remoteFileSearch.results.isEmpty {
                         HStack(spacing: RD.Spacing.sm) {
@@ -502,7 +511,7 @@ struct RemoteBrowserView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    ForEach(remoteFileSearch.results) { result in
+                    ForEach(deepResults) { result in
                         Button {
                             Task { await navigateRemoteTo(result.directoryPath) }
                         } label: {
@@ -521,7 +530,7 @@ struct RemoteBrowserView: View {
                         .buttonStyle(.plain)
                     }
                 } header: {
-                    if !remoteFileSearch.results.isEmpty || (remoteSearchIsActive && filteredRemoteFiles.isEmpty) {
+                    if !deepResults.isEmpty || (remoteSearchIsActive && filteredRemoteFiles.isEmpty) {
                         Text("In subdirectories")
                     }
                 }

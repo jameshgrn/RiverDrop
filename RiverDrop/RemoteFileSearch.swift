@@ -32,44 +32,44 @@ final class RemoteFileSearch: ObservableObject {
         searchTask = Task {
             defer { isSearching = false }
 
-            let escapedPattern = "*\(trimmed)*"
-
-            // Build a single find command across all directories.
-            // Use -maxdepth 8 to avoid runaway traversal, -iname for case-insensitive.
-            let dirArgs = directories
-                .map { $0.shellQuoted }
-                .joined(separator: " ")
-            let findCommand = "find \(dirArgs) -maxdepth 8 -iname \(escapedPattern.shellQuoted) -not -path '*/.*' 2>/dev/null | head -300"
+            let dirArgs = directories.map { $0.shellQuoted }.joined(separator: " ")
+            let findCommand = "find \(dirArgs) -maxdepth 8 -iname \("*\(trimmed)*".shellQuoted) -not -path '*/.*' 2>/dev/null | head -300"
 
             do {
-                let output = try await service.executeCommand(findCommand, mergeStreams: false)
-                guard !Task.isCancelled else { return }
-
-                let lines = output.split(whereSeparator: \.isNewline)
+                let stream = try await service.executeCommandStream(findCommand)
+                var lineBuffer = Data()
                 var seen = Set<String>()
-                for line in lines {
-                    let path = String(line)
-                    guard !path.isEmpty, seen.insert(path).inserted else { continue }
 
-                    let filename = (path as NSString).lastPathComponent
-                    let isDir = false // find returns files; navigate goes to parent dir
+                for try await output in stream {
+                    guard !Task.isCancelled else { return }
+                    if case .stdout(var byteBuffer) = output,
+                       let chunk = byteBuffer.readData(length: byteBuffer.readableBytes) {
+                        lineBuffer.append(chunk)
+                        while let newline = lineBuffer.firstIndex(of: 10) {
+                            let lineData = lineBuffer[..<newline]
+                            lineBuffer.removeSubrange(...newline)
 
-                    // Build relative path from the first matching search root
-                    var relative = path
-                    for dir in directories {
-                        let prefix = dir.hasSuffix("/") ? dir : dir + "/"
-                        if path.hasPrefix(prefix) {
-                            relative = String(path.dropFirst(prefix.count))
-                            break
+                            let path = String(data: lineData, encoding: .utf8)?
+                                .trimmingCharacters(in: .controlCharacters) ?? ""
+                            guard !path.isEmpty, seen.insert(path).inserted else { continue }
+
+                            let filename = (path as NSString).lastPathComponent
+                            var relative = path
+                            for dir in directories {
+                                let prefix = dir.hasSuffix("/") ? dir : dir + "/"
+                                if path.hasPrefix(prefix) {
+                                    relative = String(path.dropFirst(prefix.count))
+                                    break
+                                }
+                            }
+                            results.append(RemoteFileSearchResult(
+                                absolutePath: path,
+                                relativePath: relative,
+                                filename: filename,
+                                isDirectory: false
+                            ))
                         }
                     }
-
-                    results.append(RemoteFileSearchResult(
-                        absolutePath: path,
-                        relativePath: relative,
-                        filename: filename,
-                        isDirectory: isDir
-                    ))
                 }
 
                 if results.isEmpty {
@@ -86,5 +86,9 @@ final class RemoteFileSearch: ObservableObject {
         searchTask?.cancel()
         searchTask = nil
         isSearching = false
+    }
+
+    deinit {
+        searchTask?.cancel()
     }
 }
