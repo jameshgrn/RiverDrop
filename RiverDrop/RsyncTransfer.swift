@@ -201,42 +201,46 @@ final class RsyncTransfer: @unchecked Sendable {
         let progressRegex = try NSRegularExpression(pattern: #"(\d+)%"#)
         let resumeGuard = AtomicFlag()
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            fileHandle.readabilityHandler = { handle in
-                let data = handle.availableData
-                if data.isEmpty {
-                    handle.readabilityHandler = nil
-                    return
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                fileHandle.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if data.isEmpty {
+                        handle.readabilityHandler = nil
+                        return
+                    }
+
+                    if let line = String(data: data, encoding: .utf8) {
+                        let range = NSRange(line.startIndex..., in: line)
+                        if let match = progressRegex.matches(in: line, range: range).last,
+                           let percentRange = Range(match.range(at: 1), in: line),
+                           let percent = Double(line[percentRange])
+                        {
+                            progressHandler(min(percent / 100.0, 1.0))
+                        }
+                    }
                 }
 
-                if let line = String(data: data, encoding: .utf8) {
-                    let range = NSRange(line.startIndex..., in: line)
-                    if let match = progressRegex.matches(in: line, range: range).last,
-                       let percentRange = Range(match.range(at: 1), in: line),
-                       let percent = Double(line[percentRange])
-                    {
-                        progressHandler(min(percent / 100.0, 1.0))
+                proc.terminationHandler = { [weak self] process in
+                    fileHandle.readabilityHandler = nil
+                    self?.clearProcess()
+
+                    guard resumeGuard.setIfUnset() else { return }
+
+                    if process.terminationStatus == 0 {
+                        progressHandler(1.0)
+                        continuation.resume()
+                    } else if self?.isTransferCancelled() == true || process.terminationReason == .uncaughtSignal {
+                        continuation.resume(throwing: CancellationError())
+                    } else {
+                        continuation.resume(
+                            throwing: RsyncError.processFailed(exitCode: process.terminationStatus)
+                        )
                     }
                 }
             }
-
-            proc.terminationHandler = { [weak self] process in
-                fileHandle.readabilityHandler = nil
-                self?.clearProcess()
-
-                guard resumeGuard.setIfUnset() else { return }
-
-                if process.terminationStatus == 0 {
-                    progressHandler(1.0)
-                    continuation.resume()
-                } else if self?.isTransferCancelled() == true || process.terminationReason == .uncaughtSignal {
-                    continuation.resume(throwing: CancellationError())
-                } else {
-                    continuation.resume(
-                        throwing: RsyncError.processFailed(exitCode: process.terminationStatus)
-                    )
-                }
-            }
+        } onCancel: { [weak self] in
+            self?.cancel()
         }
     }
 
@@ -315,42 +319,46 @@ final class RsyncTransfer: @unchecked Sendable {
         let progressRegex = try NSRegularExpression(pattern: #"(\d+)%"#)
         let resumeGuard = AtomicFlag()
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            fileHandle.readabilityHandler = { handle in
-                let data = handle.availableData
-                if data.isEmpty {
-                    handle.readabilityHandler = nil
-                    return
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                fileHandle.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if data.isEmpty {
+                        handle.readabilityHandler = nil
+                        return
+                    }
+
+                    if let line = String(data: data, encoding: .utf8) {
+                        let range = NSRange(line.startIndex..., in: line)
+                        if let match = progressRegex.matches(in: line, range: range).last,
+                           let percentRange = Range(match.range(at: 1), in: line),
+                           let percent = Double(line[percentRange])
+                        {
+                            progressHandler(min(percent / 100.0, 1.0))
+                        }
+                    }
                 }
 
-                if let line = String(data: data, encoding: .utf8) {
-                    let range = NSRange(line.startIndex..., in: line)
-                    if let match = progressRegex.matches(in: line, range: range).last,
-                       let percentRange = Range(match.range(at: 1), in: line),
-                       let percent = Double(line[percentRange])
-                    {
-                        progressHandler(min(percent / 100.0, 1.0))
+                proc.terminationHandler = { [weak self] process in
+                    fileHandle.readabilityHandler = nil
+                    self?.clearProcess()
+
+                    guard resumeGuard.setIfUnset() else { return }
+
+                    if process.terminationStatus == 0 {
+                        progressHandler(1.0)
+                        continuation.resume()
+                    } else if self?.isTransferCancelled() == true || process.terminationReason == .uncaughtSignal {
+                        continuation.resume(throwing: CancellationError())
+                    } else {
+                        continuation.resume(
+                            throwing: RsyncError.processFailed(exitCode: process.terminationStatus)
+                        )
                     }
                 }
             }
-
-            proc.terminationHandler = { [weak self] process in
-                fileHandle.readabilityHandler = nil
-                self?.clearProcess()
-
-                guard resumeGuard.setIfUnset() else { return }
-
-                if process.terminationStatus == 0 {
-                    progressHandler(1.0)
-                    continuation.resume()
-                } else if self?.isTransferCancelled() == true || process.terminationReason == .uncaughtSignal {
-                    continuation.resume(throwing: CancellationError())
-                } else {
-                    continuation.resume(
-                        throwing: RsyncError.processFailed(exitCode: process.terminationStatus)
-                    )
-                }
-            }
+        } onCancel: { [weak self] in
+            self?.cancel()
         }
     }
 
@@ -459,24 +467,28 @@ final class RsyncTransfer: @unchecked Sendable {
         let stdoutHandle = stdoutPipe.fileHandleForReading
         let stderrHandle = stderrPipe.fileHandleForReading
 
-        async let stdoutRead = Task.detached { stdoutHandle.readDataToEndOfFile() }.value
-        async let stderrRead = Task.detached { stderrHandle.readDataToEndOfFile() }.value
-        let stdoutData = await stdoutRead
-        let stderrData = await stderrRead
-        await Task.detached { proc.waitUntilExit() }.value
-        clearProcess()
+        return try await withTaskCancellationHandler {
+            async let stdoutRead = Task.detached { stdoutHandle.readDataToEndOfFile() }.value
+            async let stderrRead = Task.detached { stderrHandle.readDataToEndOfFile() }.value
+            let stdoutData = await stdoutRead
+            let stderrData = await stderrRead
+            await Task.detached { proc.waitUntilExit() }.value
+            clearProcess()
 
-        if isTransferCancelled() {
-            throw CancellationError()
+            if isTransferCancelled() {
+                throw CancellationError()
+            }
+
+            if proc.terminationStatus != 0 {
+                let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+                throw RsyncError.dryRunFailed(exitCode: proc.terminationStatus, stderr: stderr)
+            }
+
+            let output = String(data: stdoutData, encoding: .utf8) ?? ""
+            return parseDryRunOutput(output)
+        } onCancel: { [weak self] in
+            self?.cancel()
         }
-
-        if proc.terminationStatus != 0 {
-            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-            throw RsyncError.dryRunFailed(exitCode: proc.terminationStatus, stderr: stderr)
-        }
-
-        let output = String(data: stdoutData, encoding: .utf8) ?? ""
-        return parseDryRunOutput(output)
     }
 
     private func storeProcessIfNotCancelled(_ proc: Process) throws {
