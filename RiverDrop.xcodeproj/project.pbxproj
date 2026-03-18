@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -14,6 +14,7 @@
 		2CCD926E9A53A04B41ECED7A /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */; };
 		3116B4A1256173EBF1B77DFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F268EE2F1B0C60286617AE1 /* Assets.xcassets */; };
 		34E1495F71BCEE0E008B63AF /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667ECBE9A818F337254038FE /* PaywallView.swift */; };
+		35D3AE36D601491A84201D7A /* KeyboardInteractiveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6B20A3350E46FFABF59CC9 /* KeyboardInteractiveAuth.swift */; };
 		41733F1A12233E61CC311401 /* FocusedValues+RiverDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5075D3D82B0E214FB0BAEDAF /* FocusedValues+RiverDrop.swift */; };
 		44B72C41527A78280F7DA0A4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */; };
 		4F28F3D1B3DFA5355BDD808F /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */; };
@@ -25,7 +26,6 @@
 		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
 		66F66B915BFCF6DDC8A3B145 /* DirectorySearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26D99032F42CE96ED039572 /* DirectorySearchIndex.swift */; };
 		687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */; };
-		35D3AE36D601491A84201D7A /* KeyboardInteractiveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6B20A3350E46FFABF59CC9 /* KeyboardInteractiveAuth.swift */; };
 		6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92F4E94228FEDA36172E00B /* KeychainHelper.swift */; };
 		793EEFD64EAB34E77373744B /* RemoteBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FDF1E76B3E2F47F6298FA2 /* RemoteBrowserView.swift */; };
 		79B1FC1D9D1D6A95D3159756 /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B534458F7928E586D46EEA2A /* LocalBrowserView.swift */; };
@@ -78,12 +78,12 @@
 		6E56092F80B2714AEA930DA0 /* BookmarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManager.swift; sourceTree = "<group>"; };
 		79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
 		7F36E17BEAF0F28C53DC6868 /* LocalFileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileItem.swift; sourceTree = "<group>"; };
-		809ED4C4ED36643B3F64854F /* RiverDrop.storekit */ = {isa = PBXFileReference; path = RiverDrop.storekit; sourceTree = "<group>"; };
+		809ED4C4ED36643B3F64854F /* RiverDrop.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = RiverDrop.storekit; sourceTree = "<group>"; };
 		813E2975686EF8B8CAA4D17C /* LocalToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalToolbarView.swift; sourceTree = "<group>"; };
 		81B9D82C375B13C25BAFAB01 /* TransferThrottle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferThrottle.swift; sourceTree = "<group>"; };
 		86DCF11AE14212DA57CC1779 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
 		87CCF9985AFF6E62D40DA916 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
-		8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		96E53433680D587385A34112 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		A0880142BC3495737E61F70D /* RiverDrop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RiverDrop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6FDF1E76B3E2F47F6298FA2 /* RemoteBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteBrowserView.swift; sourceTree = "<group>"; };
@@ -99,10 +99,10 @@
 		D03C91F17941C4221120871D /* TransferLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferLogView.swift; sourceTree = "<group>"; };
 		D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
 		DF057F6F4855F6DE9C34679C /* ServerEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEntry.swift; sourceTree = "<group>"; };
+		DF6B20A3350E46FFABF59CC9 /* KeyboardInteractiveAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInteractiveAuth.swift; sourceTree = "<group>"; };
 		E9FD679963557A16BC6D49ED /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		EB90A53412316A0A7C768615 /* RipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RipgrepSearch.swift; sourceTree = "<group>"; };
 		F5A2517487024C7E0AE8BD03 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
-		DF6B20A3350E46FFABF59CC9 /* KeyboardInteractiveAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInteractiveAuth.swift; sourceTree = "<group>"; };
 		F92F4E94228FEDA36172E00B /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		FF897345A24727BA720DA425 /* DirectoryLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryLoader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -219,7 +219,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					AB73A47AC5692C1A99F049D3 = {
 						ProvisioningStyle = Automatic;
@@ -239,7 +239,6 @@
 			packageReferences = (
 				ED26CC88E0657C155398187A /* XCRemoteSwiftPackageReference "Citadel" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -349,9 +348,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -372,6 +373,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -385,11 +387,11 @@
 				CODE_SIGN_ENTITLEMENTS = RiverDrop/RiverDrop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RiverDrop/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -436,9 +438,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -452,6 +456,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -465,11 +470,11 @@
 				CODE_SIGN_ENTITLEMENTS = RiverDrop/RiverDrop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RiverDrop/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
