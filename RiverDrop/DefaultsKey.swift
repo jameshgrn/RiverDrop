@@ -19,5 +19,4 @@ enum DefaultsKey {
     static let manualServers = "manualServers"
     static let customRsyncPath = "customRsyncPath"
     static let customRgPath = "customRgPath"
-    static let licenseLastValidated = "licenseLastValidated"
 }

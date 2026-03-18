@@ -13,7 +13,6 @@
 		1AF494A3A02EC5FD2F9B7EA4 /* HostKeyManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C9EB71237DC00DE4CB2789 /* HostKeyManagementView.swift */; };
 		2CCD926E9A53A04B41ECED7A /* RsyncTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */; };
 		3116B4A1256173EBF1B77DFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F268EE2F1B0C60286617AE1 /* Assets.xcassets */; };
-		34E1495F71BCEE0E008B63AF /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667ECBE9A818F337254038FE /* PaywallView.swift */; };
 		35D3AE36D601491A84201D7A /* KeyboardInteractiveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6B20A3350E46FFABF59CC9 /* KeyboardInteractiveAuth.swift */; };
 		41733F1A12233E61CC311401 /* FocusedValues+RiverDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5075D3D82B0E214FB0BAEDAF /* FocusedValues+RiverDrop.swift */; };
 		44B72C41527A78280F7DA0A4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */; };
@@ -21,7 +20,6 @@
 		502CC51590CEC22F6481D11D /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E55F09D483C9B50F4EB55B /* ConnectionView.swift */; };
 		5182638640D163BBB0E13FA8 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86DCF11AE14212DA57CC1779 /* ServerStore.swift */; };
 		5252D9D6BB5766D9D352761B /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C94543C0ABA4F053088143 /* SyncCoordinator.swift */; };
-		54078D9F193B06AAFA7280E0 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CFF55558285CBA891F0146D /* StoreManager.swift */; };
 		59ABB4FE5E8FC98C96F86379 /* TransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E8753DBA408E9165BECC22 /* TransferManager.swift */; };
 		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
 		66F66B915BFCF6DDC8A3B145 /* DirectorySearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26D99032F42CE96ED039572 /* DirectorySearchIndex.swift */; };
@@ -63,7 +61,6 @@
 		178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RiverDrop.entitlements; sourceTree = "<group>"; };
 		17C94543C0ABA4F053088143 /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		19E8753DBA408E9165BECC22 /* TransferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferManager.swift; sourceTree = "<group>"; };
-		1CFF55558285CBA891F0146D /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		1FCCC5409A5B940D40B55731 /* VirtualizedListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualizedListView.swift; sourceTree = "<group>"; };
 		2CD62E639ADCF6996C8DF9D0 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		3CCDF3CEBDF7C11B3F16E362 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -73,7 +70,6 @@
 		475DC44F97CE166D9CB71385 /* RiverDropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiverDropApp.swift; sourceTree = "<group>"; };
 		5075D3D82B0E214FB0BAEDAF /* FocusedValues+RiverDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusedValues+RiverDrop.swift"; sourceTree = "<group>"; };
 		5BE843CB820511ABADEE1313 /* ContentSearchPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSearchPanel.swift; sourceTree = "<group>"; };
-		667ECBE9A818F337254038FE /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		6DD214204711FA3367D0F156 /* LocalFileOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileOperations.swift; sourceTree = "<group>"; };
 		6E56092F80B2714AEA930DA0 /* BookmarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManager.swift; sourceTree = "<group>"; };
 		79F3C6B359FC4F34CC6D1136 /* RsyncTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsyncTransfer.swift; sourceTree = "<group>"; };
@@ -151,7 +147,6 @@
 				6DD214204711FA3367D0F156 /* LocalFileOperations.swift */,
 				813E2975686EF8B8CAA4D17C /* LocalToolbarView.swift */,
 				C7584E43BAC720FCB206A8B4 /* MainView.swift */,
-				667ECBE9A818F337254038FE /* PaywallView.swift */,
 				8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */,
 				A6FDF1E76B3E2F47F6298FA2 /* RemoteBrowserView.swift */,
 				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
@@ -169,7 +164,6 @@
 				3CCDF3CEBDF7C11B3F16E362 /* SidebarView.swift */,
 				C370249694DA68C4E333B514 /* SSHConfigParser.swift */,
 				B146A2ACB6A8B2AAFC8D4874 /* SSHKeyManager.swift */,
-				1CFF55558285CBA891F0146D /* StoreManager.swift */,
 				17C94543C0ABA4F053088143 /* SyncCoordinator.swift */,
 				07D673C835A4DB39A5FF3CD5 /* TransferItem.swift */,
 				D03C91F17941C4221120871D /* TransferLogView.swift */,
@@ -285,7 +279,6 @@
 				0F56ECBA25EEFCFD05098391 /* LocalFileOperations.swift in Sources */,
 				9C7BD75FC6489690B16DCBD4 /* LocalToolbarView.swift in Sources */,
 				5D738D461AD957016FF547F5 /* MainView.swift in Sources */,
-				34E1495F71BCEE0E008B63AF /* PaywallView.swift in Sources */,
 				793EEFD64EAB34E77373744B /* RemoteBrowserView.swift in Sources */,
 				AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */,
 				687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */,
@@ -300,7 +293,6 @@
 				EADBA403D871C026B52B818E /* SettingsView.swift in Sources */,
 				B95ADF64E9E9B5D62C8A6E23 /* SharedViews.swift in Sources */,
 				7C907286F5803C86BC9353A6 /* SidebarView.swift in Sources */,
-				54078D9F193B06AAFA7280E0 /* StoreManager.swift in Sources */,
 				5252D9D6BB5766D9D352761B /* SyncCoordinator.swift in Sources */,
 				B35B3E4E2B66E55029C4EB38 /* TransferItem.swift in Sources */,
 				7B624C84E6ECEC4E17085EA0 /* TransferLogView.swift in Sources */,

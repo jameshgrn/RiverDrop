@@ -1,0 +1,45 @@
+{
+  "project_root": "/Users/jakegearon/projects/RiverDrop",
+  "tasks": [
+    {
+      "id": "accessibility-labels",
+      "description": "Fix H-4 from REVIEW-SWIFTUI.md",
+      "touches": ["RiverDrop/MainView.swift", "RiverDrop/DropZoneView.swift"],
+      "exports": [],
+      "imports": [],
+      "agent": "river-gpu0",
+      "permission_mode": "bypassPermissions",
+      "prompt": "Add accessibilityLabel to icon-only buttons as described in REVIEW-SWIFTUI.md (H-4). Specifically for Go up button, Refresh button, Remove staged item (DropZoneView), and Transfer log chevron."
+    },
+    {
+      "id": "dynamic-type-support",
+      "description": "Fix H-3 from REVIEW-SWIFTUI.md",
+      "touches": ["RiverDrop/ConnectionView.swift", "RiverDrop/MainView.swift", "RiverDrop/DropZoneView.swift", "RiverDrop/DesignSystem.swift"],
+      "exports": [],
+      "imports": [],
+      "agent": "river-gpu1",
+      "permission_mode": "bypassPermissions",
+      "prompt": "Replace fixed font sizes with semantic styles or use @ScaledMetric to allow for Dynamic Type scaling as described in REVIEW-SWIFTUI.md (H-3)."
+    },
+    {
+      "id": "cleanup-temp-secrets",
+      "description": "Fix 2c from REVIEW-SECURITY.md",
+      "touches": ["RiverDrop/RsyncTransfer.swift"],
+      "exports": [],
+      "imports": [],
+      "agent": "hunter",
+      "permission_mode": "bypassPermissions",
+      "prompt": "Add a startup or cleanup mechanism for temp askpass scripts and key files to ensure no secrets are left in the temp directory after a crash, as described in REVIEW-SECURITY.md (2c)."
+    },
+    {
+      "id": "fix-duplicate-staged-uploads",
+      "description": "Fix M-1 from REVIEW-SWIFTUI.md",
+      "touches": ["RiverDrop/MainView.swift", "RiverDrop/LocalBrowserView.swift", "RiverDrop/TransferManager.swift"],
+      "exports": [],
+      "imports": [],
+      "agent": "river-gpu0",
+      "permission_mode": "bypassPermissions",
+      "prompt": "Unify stagedUploads into a single source of truth (e.g. in TransferManager) to fix the duplicate state issue between MainView and LocalBrowserView (M-1 in REVIEW-SWIFTUI.md)."
+    }
+  ]
+}
