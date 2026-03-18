@@ -34,6 +34,7 @@ struct LocalBrowserView: View {
     @State private var searchResults: [LocalFileItem] = []
     @State private var searchMatchRanges: [LocalFileItem.ID: [Range<String.Index>]] = [:]
     @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var loadDirectoryTask: Task<Void, Never>?
     @FocusState private var isSearchFieldFocused: Bool
 
     private var filteredFiles: [LocalFileItem] {
@@ -549,23 +550,27 @@ struct LocalBrowserView: View {
             return
         }
 
-        guard let granted = promptForAccess(directoryURL: url, message: "Grant access to \(url.lastPathComponent)") else { return }
-        guard beginSecurityScopedAccess(to: granted) else {
-            sftpService.errorMessage = "Open directory failed for \(granted.path): could not start security-scoped access. Suggested fix: re-select the folder from the bookmark menu."
-            return
+        Task {
+            guard let granted = await promptForAccess(directoryURL: url, message: "Grant access to \(url.lastPathComponent)") else { return }
+            guard beginSecurityScopedAccess(to: granted) else {
+                sftpService.errorMessage = "Open directory failed for \(granted.path): could not start security-scoped access. Suggested fix: re-select the folder from the bookmark menu."
+                return
+            }
+            saveBookmark(url: granted, key: path)
+            navigateTo(granted)
         }
-        saveBookmark(url: granted, key: path)
-        navigateTo(granted)
     }
 
     private func openPanel() {
-        guard let url = promptForAccess(directoryURL: nil, message: nil) else { return }
-        guard beginSecurityScopedAccess(to: url) else {
-            sftpService.errorMessage = "Open directory failed for \(url.path): could not start security-scoped access. Suggested fix: re-select the folder and grant access again."
-            return
+        Task {
+            guard let url = await promptForAccess(directoryURL: nil, message: nil) else { return }
+            guard beginSecurityScopedAccess(to: url) else {
+                sftpService.errorMessage = "Open directory failed for \(url.path): could not start security-scoped access. Suggested fix: re-select the folder and grant access again."
+                return
+            }
+            saveBookmark(url: url, key: url.path)
+            navigateTo(url)
         }
-        saveBookmark(url: url, key: url.path)
-        navigateTo(url)
     }
 
     private func requestInitialAccess() {
@@ -577,16 +582,18 @@ struct LocalBrowserView: View {
             loadDirectory()
             return
         }
-        if let url = promptForAccess(directoryURL: startDir, message: "Select folder to grant file access") {
-            guard beginSecurityScopedAccess(to: url) else {
-                sftpService.errorMessage = "Open directory failed for \(url.path): could not start security-scoped access. Suggested fix: re-select the folder and grant access again."
+        Task {
+            if let url = await promptForAccess(directoryURL: startDir, message: "Select folder to grant file access") {
+                guard beginSecurityScopedAccess(to: url) else {
+                    sftpService.errorMessage = "Open directory failed for \(url.path): could not start security-scoped access. Suggested fix: re-select the folder and grant access again."
+                    loadDirectory()
+                    return
+                }
+                saveBookmark(url: url, key: url.path)
+                navigateTo(url)
+            } else {
                 loadDirectory()
-                return
             }
-            saveBookmark(url: url, key: url.path)
-            navigateTo(url)
-        } else {
-            loadDirectory()
         }
     }
 
@@ -651,7 +658,7 @@ struct LocalBrowserView: View {
         }
     }
 
-    private func promptForAccess(directoryURL: URL?, message: String?) -> URL? {
+    private func promptForAccess(directoryURL: URL?, message: String?) async -> URL? {
         let panel = NSOpenPanel()
         if let dir = directoryURL { panel.directoryURL = dir }
         panel.canChooseDirectories = true
@@ -659,64 +666,87 @@ struct LocalBrowserView: View {
         panel.allowsMultipleSelection = false
         if let msg = message { panel.message = msg }
         panel.prompt = "Open"
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return url
+
+        if let window = NSApp.keyWindow {
+            let response = await panel.beginSheetModal(for: window)
+            guard response == .OK, let url = panel.url else { return nil }
+            return url
+        } else {
+            guard panel.runModal() == .OK, let url = panel.url else { return nil }
+            return url
+        }
     }
 
     // MARK: - File Loading
 
     private func loadDirectory() {
-        do {
-            let urls = try FileManager.default.contentsOfDirectory(
-                at: localCurrentDirectory,
-                includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
-                options: showHiddenFiles ? [] : [.skipsHiddenFiles]
-            )
-            var skippedCount = 0
-            files = urls.compactMap { url in
-                let originalValues: URLResourceValues
+        loadDirectoryTask?.cancel()
+        let dir = localCurrentDirectory
+        let hidden = showHiddenFiles
+        let downloaded = recentlyDownloaded
+
+        loadDirectoryTask = Task {
+            let result: (items: [LocalFileItem], error: String?)
+            result = await Task.detached {
                 do {
-                    originalValues = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
-                } catch {
-                    skippedCount += 1
-                    return nil
-                }
-                let isSymlink = originalValues.isSymbolicLink ?? false
-                let resolved = url.resolvingSymlinksInPath()
-                let values: URLResourceValues
-                do {
-                    values = try resolved.resourceValues(
-                        forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+                    let urls = try FileManager.default.contentsOfDirectory(
+                        at: dir,
+                        includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                        options: hidden ? [] : [.skipsHiddenFiles]
                     )
+                    var skippedCount = 0
+                    let items = urls.compactMap { url -> LocalFileItem? in
+                        let originalValues: URLResourceValues
+                        do {
+                            originalValues = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
+                        } catch {
+                            skippedCount += 1
+                            return nil
+                        }
+                        let isSymlink = originalValues.isSymbolicLink ?? false
+                        let resolved = url.resolvingSymlinksInPath()
+                        let values: URLResourceValues
+                        do {
+                            values = try resolved.resourceValues(
+                                forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+                            )
+                        } catch {
+                            skippedCount += 1
+                            return nil
+                        }
+                        return LocalFileItem(
+                            filename: url.lastPathComponent,
+                            isDirectory: values.isDirectory ?? false,
+                            isSymbolicLink: isSymlink,
+                            size: UInt64(values.fileSize ?? 0),
+                            modificationDate: values.contentModificationDate,
+                            url: url,
+                            resolvedURL: resolved
+                        )
+                    }
+                    .sorted { lhs, rhs in
+                        let lhsNew = downloaded.contains(lhs.filename)
+                        let rhsNew = downloaded.contains(rhs.filename)
+                        if lhsNew != rhsNew { return lhsNew }
+                        if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
+                        return lhs.filename.localizedCaseInsensitiveCompare(rhs.filename) == .orderedAscending
+                    }
+                    let err: String? = skippedCount > 0
+                        ? "List local directory partially failed for \(dir.path): skipped \(skippedCount) item(s). Suggested fix: check local permissions and retry."
+                        : nil
+                    return (items, err)
                 } catch {
-                    skippedCount += 1
-                    return nil
+                    return ([], "List local directory failed for \(dir.path): \(error.localizedDescription). Suggested fix: check local permissions and confirm the folder still exists.")
                 }
-                return LocalFileItem(
-                    filename: url.lastPathComponent,
-                    isDirectory: values.isDirectory ?? false,
-                    isSymbolicLink: isSymlink,
-                    size: UInt64(values.fileSize ?? 0),
-                    modificationDate: values.contentModificationDate,
-                    url: url,
-                    resolvedURL: resolved
-                )
+            }.value
+
+            guard !Task.isCancelled else { return }
+            files = result.items
+            if let error = result.error {
+                sftpService.errorMessage = error
             }
-            .sorted { lhs, rhs in
-                let lhsNew = recentlyDownloaded.contains(lhs.filename)
-                let rhsNew = recentlyDownloaded.contains(rhs.filename)
-                if lhsNew != rhsNew { return lhsNew }
-                if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
-                return lhs.filename.localizedCaseInsensitiveCompare(rhs.filename) == .orderedAscending
-            }
-            if skippedCount > 0 {
-                sftpService.errorMessage = "List local directory partially failed for \(localCurrentDirectory.path): skipped \(skippedCount) item(s). Suggested fix: check local permissions and retry."
-            }
-        } catch {
-            files = []
-            sftpService.errorMessage = "List local directory failed for \(localCurrentDirectory.path): \(error.localizedDescription). Suggested fix: check local permissions and confirm the folder still exists."
+            searchIndex.build(from: files) { $0.filename }
         }
-        searchIndex.build(from: files) { $0.filename }
     }
 
     // MARK: - Upload / Selection Actions
