@@ -10,7 +10,6 @@ book:
   chapters:
     - index.qmd
     - installation.qmd
-    - license.qmd
     - connecting.qmd
     - browsing.qmd
     - transferring.qmd

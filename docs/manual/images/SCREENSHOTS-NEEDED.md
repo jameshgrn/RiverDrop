@@ -9,7 +9,6 @@ To complete the user manual, the following screenshots should be captured and sa
 | `main-view.png` | The main window with both local and remote panes populated. |
 | `install-dmg.png` | A generic representation of dragging the app into the Applications folder. |
 | `permission-prompt.png` | A macOS system prompt asking for access to a folder. |
-| `activation-screen.png` | The license key entry screen at first launch. |
 
 ## Connections
 
