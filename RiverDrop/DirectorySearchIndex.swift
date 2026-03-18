@@ -53,6 +53,9 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
     /// Currently running search task -- cancelled when a new search starts.
     private var searchTask: Task<Void, Never>?
 
+    /// The detached fuzzy-match task -- must be cancelled separately from searchTask.
+    private var detachedSearchTask: Task<[ScoredResult], Never>?
+
     private struct Entry: Sendable {
         let item: Item
         let name: String
@@ -100,6 +103,8 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
         // Cancel previous search.
         searchTask?.cancel()
         searchTask = nil
+        detachedSearchTask?.cancel()
+        detachedSearchTask = nil
 
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else {
@@ -118,6 +123,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
 
         // Run the scan on a detached task to avoid blocking the main actor.
         let task = Task<[ScoredResult], Never>.detached(priority: .userInitiated) { [pattern] in
+
             var scored: [ScoredResult] = []
             scored.reserveCapacity(snapshot.count / 4)
 
@@ -145,6 +151,7 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
             scored.sort { $0.score > $1.score }
             return scored
         }
+        detachedSearchTask = task
 
         searchTask = Task {
             let scored = await task.value
@@ -163,6 +170,8 @@ final class DirectorySearchIndex<Item: Identifiable & Sendable> {
     func cancel() {
         searchTask?.cancel()
         searchTask = nil
+        detachedSearchTask?.cancel()
+        detachedSearchTask = nil
         isSearching = false
     }
 
