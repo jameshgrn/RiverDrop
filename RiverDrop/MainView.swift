@@ -93,14 +93,23 @@ struct MainView: View {
 
     private func navigateLocalToCommandPath(_ path: String) {
         if path == AppCommandPayload.openPanel {
-            let panel = NSOpenPanel()
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.allowsMultipleSelection = false
-            panel.prompt = "Navigate"
-            if panel.runModal() == .OK, let url = panel.url {
-                saveLocalBookmark(for: url)
-                localCurrentDirectory = url
+            Task {
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.allowsMultipleSelection = false
+                panel.prompt = "Navigate"
+
+                let response: NSApplication.ModalResponse
+                if let window = NSApp.keyWindow {
+                    response = await panel.beginSheetModal(for: window)
+                } else {
+                    response = panel.runModal()
+                }
+                if response == .OK, let url = panel.url {
+                    saveLocalBookmark(for: url)
+                    localCurrentDirectory = url
+                }
             }
             return
         }
