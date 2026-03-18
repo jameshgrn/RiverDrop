@@ -1,0 +1,28 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "RiverDrop User Manual"
+  author: "Jake Gearon"
+  date: "2026-03-18"
+  description: "A professional guide to RiverDrop, the high-performance SFTP and rsync file transfer app for macOS."
+  chapters:
+    - index.qmd
+    - installation.qmd
+    - license.qmd
+    - connecting.qmd
+    - browsing.qmd
+    - transferring.qmd
+    - searching.qmd
+    - syncing.qmd
+    - keyboard-shortcuts.qmd
+    - troubleshooting.qmd
+
+format:
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    css: styles.css

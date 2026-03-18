@@ -1,0 +1,45 @@
+# Browsing Files
+
+RiverDrop's dual-pane layout is designed for maximum efficiency when managing your local and remote projects.
+
+## Dual-Pane Layout
+
+The interface is split into two main sections:
+- **Left Pane**: Your local files (Mac).
+- **Right Pane**: The remote server (SFTP/rsync).
+
+You can resize the panes by dragging the divider between them.
+
+![Dual-Pane Browser](images/dual-pane.png){fig-alt="RiverDrop's dual-pane interface"}
+
+## Local Browser Features
+
+The local pane offers a native Mac experience:
+- **Navigation**: Click a folder to enter it. Click the breadcrumbs to jump back.
+- **Go Home (⌘+1)**: Quickly return to your local home directory.
+- **Bookmarks**: Save frequently visited folders using the **Bookmark** icon (★).
+- **Open in Finder**: Right-click a folder to open it in macOS Finder.
+- **Hidden Files (⌘+⇧+.)**: Toggle visibility of hidden files (those starting with `.`).
+
+::: {.callout-tip}
+To navigate to a specific path, use the **Go to Folder (⌘+⇧+G)** shortcut.
+:::
+
+## Remote Browser Features
+
+The remote pane provides specialized tools for HPC and server management:
+- **Breadcrumbs**: Jump to any parent directory instantly.
+- **Home/Scratch Toggle**: Quick access to your home directory or a `/not_backed_up` (Scratch) partition if available.
+- **Hidden Files (⌘+⇧+,)**: Toggle hidden files independently from the local view.
+- **Status Badges**: Indicators for new or recently downloaded files.
+
+![Remote Browser Toolbar](images/remote-toolbar.png){fig-alt="The remote browser toolbar and segmented picker"}
+
+## Common File Operations
+
+In both panes, you can perform standard file management:
+- **Rename**: Right-click an item and select **Rename...**.
+- **Delete/Trash**: Select an item and press **Delete**. Local files are moved to the Trash, while remote files are permanently deleted (with confirmation).
+- **Multi-select**: Use ⌘+click to select multiple files or ⇧+click for a range.
+- **Copy Path**: Right-click to copy the absolute path of a file or folder.
+- **Refresh (⌘+R)**: Manually reload the directory listing.

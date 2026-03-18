@@ -1,0 +1,52 @@
+# Transferring Files
+
+RiverDrop offers powerful ways to upload and download your data, from simple drag-and-drop to high-speed rsync acceleration.
+
+## Drag and Drop
+
+The most intuitive way to transfer files:
+- **Upload**: Drag files from the **Left Pane** (Local) to the **Right Pane** (Remote).
+- **Download**: Drag files from the **Right Pane** (Remote) to the **Left Pane** (Local).
+
+You can also drag files directly from macOS Finder into RiverDrop to start an upload.
+
+![Drag and Drop Transfer](images/drag-and-drop.png){fig-alt="Dragging a file between the local and remote panes"}
+
+## Unified Staging Area
+
+RiverDrop includes a **Unified Staging Area** at the bottom of each pane. This allows you to "collect" files from different folders before starting a batch transfer.
+
+1.  Select one or more files.
+2.  Click the **Stage** button (or drag them to the staging area).
+3.  Once you have all your files staged, click **Transfer All**.
+
+![Staging Area](images/staging-area.png){fig-alt="The unified staging area with multiple files queued"}
+
+## Rsync Acceleration vs. SFTP Fallback
+
+RiverDrop automatically chooses the best transfer engine for your data:
+
+- **Rsync Acceleration**: When `rsync` is available on both your Mac and the server, RiverDrop uses it for high-speed, resume-capable transfers. This is especially beneficial for large directories and high-latency connections.
+- **SFTP Fallback**: If `rsync` is not available or if the transfer is small, RiverDrop uses standard SFTP.
+
+::: {.callout-tip}
+Rsync transfers are significantly faster for large scientific datasets. Ensure you have `rsync` installed via Homebrew on your Mac for the best performance.
+:::
+
+## Progress Tracking and Logs
+
+Monitor your active transfers in real-time:
+- **Progress Bars**: View overall progress for each file or batch.
+- **Transfer Log (⌘+L)**: Expand the log at the bottom of the window to see a detailed history of completed, failed, and active transfers.
+
+![Transfer Log](images/transfer-log.png){fig-alt="The expanded transfer log showing detailed history"}
+
+## Conflict Resolution
+
+If you attempt to transfer a file that already exists at the destination, RiverDrop will ask you how to resolve the conflict:
+
+- **Replace**: Overwrite the existing file.
+- **Rename**: Keep both files by automatically renaming the new one (e.g., `data (1).csv`).
+- **Cancel**: Skip the transfer of that specific file.
+
+![Conflict Resolution Dialog](images/conflict-dialog.png){fig-alt="The dialog asking to replace, rename, or cancel a conflicting file"}

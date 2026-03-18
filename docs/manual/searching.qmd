@@ -1,0 +1,48 @@
+# Searching Files
+
+RiverDrop includes powerful search tools that help you find your data instantly, whether it's by filename or its contents.
+
+## Fuzzy Filename Search (⌘+F)
+
+RiverDrop's fuzzy filename search is incredibly fast and intuitive:
+1.  Click the **Filter** field (or press **⌘+F**) in either the Local or Remote pane.
+2.  Start typing a name.
+3.  The results will update in real-time, highlighting matches.
+
+![Fuzzy Filename Search](images/fuzzy-search.png){fig-alt="Searching for a file by its name with highlighting"}
+
+The fuzzy matching engine allows for typos or partial names. For example, typing `data csv` will match `data_final.csv` and `experimental_data.csv`.
+
+::: {.callout-tip}
+Press **ESC** to clear the search and return to the full directory listing.
+:::
+
+## Content Search with Ripgrep (rg)
+
+When filenames aren't enough, RiverDrop uses **ripgrep** for ultra-fast content searching.
+
+1.  Click the **Content Search** icon (magnifying glass with document).
+2.  Enter your search query.
+3.  Select your search options:
+    - **Recursive**: Search through all subdirectories.
+    - **File Type Filter**: Restrict the search to specific extensions (e.g., `py, csv`).
+4.  The results pane will display matching lines with previews and line numbers.
+
+![Content Search Panel](images/content-search.png){fig-alt="The ripgrep content search panel with results"}
+
+### Local Content Search
+RiverDrop runs `rg` directly on your Mac to scan your local project folders.
+
+### Remote Content Search
+For remote servers, RiverDrop executes `rg` on the server itself. This means searching is just as fast on a remote HPC cluster as it is on your local machine.
+
+::: {.callout-note}
+Remote content search requires the `rg` binary to be available in the search path of your remote server.
+:::
+
+## Advanced Search Filters
+
+Refine your searches using the following filters:
+- **Max Results**: Limit the number of matches returned (default: 100).
+- **Max Line Length**: Limit the amount of text shown for each match to keep the view clean.
+- **Recursive Toggle**: Quickly switch between searching the current directory and all subfolders.

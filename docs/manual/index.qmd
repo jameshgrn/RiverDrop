@@ -1,0 +1,31 @@
+# Welcome to RiverDrop {.unnumbered}
+
+![RiverDrop Main View](images/main-view.png){fig-alt="The main dual-pane window of RiverDrop"}
+
+**RiverDrop** is a high-performance file transfer application for macOS, specifically designed for researchers, data scientists, and power users who work with remote servers and High-Performance Computing (HPC) clusters.
+
+Unlike traditional SFTP clients, RiverDrop integrates **rsync** directly into its workflow to provide accelerated, resume-capable transfers and intelligent directory synchronization, while maintaining a clean, native Mac experience.
+
+## Key Features
+
+- **Dual-Pane Interface**: Effortlessly navigate local and remote file systems side-by-side.
+- **Rsync-Accelerated Transfers**: Faster uploads and downloads, especially for large directories and high-latency connections.
+- **Smart Synchronization**: Preview changes with a dry-run before applying bi-directional sync.
+- **Unified Staging Area**: Queue multiple files from different locations before starting the transfer.
+- **Fuzzy Search & Indexing**: Instant filename searching for local and remote directories.
+- **Content Search**: Deep content search using integrated **ripgrep**.
+- **SSH Config Integration**: Automatically detects and imports your existing SSH host aliases and ProxyJump settings.
+- **HPC Friendly**: Built-in support for Kerberos (`kinit`) ticket renewal.
+
+## System Requirements
+
+- **Operating System**: macOS 14.0 (Sonoma) or later.
+- **Hardware**: Compatible with Intel and Apple Silicon Macs.
+- **Recommended Tools**:
+  - `rsync`: Required for accelerated transfers and sync (available via Homebrew).
+  - `ripgrep` (`rg`): Required for content search (available via Homebrew).
+
+::: {.callout-tip}
+For the best experience, we recommend installing `rsync` and `ripgrep` via [Homebrew](https://brew.sh):
+`brew install rsync ripgrep`
+:::

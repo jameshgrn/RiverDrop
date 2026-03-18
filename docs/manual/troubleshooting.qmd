@@ -1,0 +1,57 @@
+# Troubleshooting
+
+While RiverDrop is designed to be as seamless as possible, you may occasionally encounter issues with network conditions, server configurations, or command-line tools.
+
+## Connection Issues
+
+### Connection Timeouts
+If a connection times out after 30 seconds:
+- Verify that your Mac has a stable internet connection.
+- Check that the server hostname and port (default: 22) are correct.
+- Ensure that you are not on a restricted network (e.g., a corporate firewall) that blocks outgoing SSH connections.
+
+### Host Key Mismatch
+RiverDrop stores the public key of your remote server in your Mac's Keychain. If the host key changes:
+- You will see an error message indicating a **Host Key Mismatch**.
+- This is a security feature to prevent man-in-the-middle attacks.
+- If you know the server was recently reinstalled or its key was rotated, you can manually remove the old key from **Keychain Access.app** and connect again.
+
+### ProxyJump Failures
+When using a bastion host:
+- Ensure that your credentials are valid for **both** the bastion host and the target server.
+- Verify that the bastion host is reachable and allows SSH jumping.
+- Check your `~/.ssh/config` if you are using an alias that includes complex proxy directives.
+
+## Transfer and Sync Issues
+
+### Rsync Not Found
+If RiverDrop reports that `rsync` is not found:
+- Ensure you have installed `rsync` via Homebrew (`brew install rsync`).
+- RiverDrop looks for rsync in `/opt/homebrew/bin/rsync`, `/usr/local/bin/rsync`, and `/usr/bin/rsync`.
+- If your rsync is in a custom location, you can specify it in **Settings > Advanced**.
+
+### Permission Denied
+If you receive a "Permission Denied" error during a transfer:
+- **Local side**: Ensure RiverDrop has permission to access the folder (see [Installation](installation.qmd)).
+- **Remote side**: Verify that your remote user has write permissions to the destination directory.
+
+### Sync Analysis Slow
+For directories with thousands of files, the dry-run analysis can take some time.
+- Use **Content Search** filters to narrow down your project size.
+- Ensure you are using a modern version of `rsync` (3.0+) for the most efficient directory analysis.
+
+## License and Activation
+
+### Offline Validation
+If RiverDrop asks you to re-validate your license:
+- Ensure your Mac is connected to the internet.
+- If your offline grace period (7 days) has expired, RiverDrop must contact the Gumroad servers once to refresh your status.
+
+### License Already in Use
+If you are moving your license to a new Mac, ensure you have deactivated it on your previous machine (see [License and Activation](license.qmd)).
+
+## Contacting Support
+If you encounter an issue not covered here, please contact us at:
+**support@riverdrop.app**
+
+Include your macOS version, a brief description of the issue, and any relevant error messages from the **Transfer Log**.

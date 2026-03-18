@@ -1,0 +1,63 @@
+# Connecting to Remote Servers
+
+Connecting to your remote servers and HPC clusters is at the heart of RiverDrop's capabilities.
+
+## SSH Configuration Auto-Detection
+
+RiverDrop automatically detects your existing SSH configuration aliases from `~/.ssh/config`. If you already use `ssh my-server` in your terminal, it will appear in the RiverDrop sidebar.
+
+![Sidebar Servers](images/sidebar-servers.png){fig-alt="List of servers in the sidebar"}
+
+1.  Select an alias from the **Sidebar**.
+2.  Click **Connect**.
+
+RiverDrop uses `ssh -G` to resolve aliases, meaning it respects your custom `HostName`, `User`, `Port`, `IdentityFile`, and `ProxyJump` directives automatically.
+
+## Manual Server Entry
+
+To add a new server manually:
+
+1.  Click the **Add Server** button (+) in the sidebar.
+2.  Enter the server details:
+    - **Label**: A friendly name for the server.
+    - **Host**: The hostname or IP address (e.g., `stampede2.tacc.utexas.edu`).
+    - **User**: Your remote username.
+    - **Port**: Typically `22` (default).
+    - **Identity File**: Select your private SSH key (e.g., `id_ed25519`).
+    - **Proxy Jump**: (Optional) Specify a bastion host for multi-hop connections.
+
+![Add Server Panel](images/add-server-panel.png){fig-alt="Adding a new server manually"}
+
+## Authentication Methods
+
+### SSH Keys (Recommended)
+RiverDrop supports Ed25519, RSA, and other standard SSH key types. You can specify a custom identity file in the manual entry screen or in your SSH config.
+
+### Password Authentication
+If your server requires a password, RiverDrop will prompt you for it during the connection process.
+
+### ProxyJump / Bastion Hosts
+For servers behind a gateway (common in HPC environments), specify the gateway in the **Proxy Jump** field. RiverDrop supports both the direct `ProxyJump` syntax and multi-hop SSH tunnels defined in your config.
+
+### Kerberos (HPC Support)
+Many university HPC systems require **Kerberos** tickets. RiverDrop can be configured to automatically renew your tickets using `kinit -R` every 5 minutes while connected.
+
+1.  Open **Settings** (⌘+,).
+2.  Enable **Renew Kerberos Tickets Automatically**.
+
+::: {.callout-note}
+Ensure you have a valid Kerberos ticket (`kinit`) in your terminal before connecting if this feature is required.
+:::
+
+## Host Key Trust (TOFU)
+
+RiverDrop follows the **Trust On First Use (TOFU)** security model. The first time you connect to a new host, RiverDrop will display its public key fingerprint.
+
+1.  Verify the fingerprint against your server's documentation.
+2.  Click **Trust and Connect**.
+
+RiverDrop stores these trusted keys in your Mac's **Keychain** to protect against man-in-the-middle attacks.
+
+::: {.callout-warning}
+If a host key changes, RiverDrop will prevent the connection for your security. Check with your system administrator if this occurs unexpectedly.
+:::

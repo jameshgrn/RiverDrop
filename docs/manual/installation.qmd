@@ -1,0 +1,47 @@
+# Installation
+
+Installing RiverDrop is straightforward and adheres to standard macOS app procedures.
+
+## Download and Install
+
+1.  **Download**: Obtain the latest RiverDrop DMG from the official website or your purchase confirmation email.
+2.  **Mount**: Double-click the DMG file to mount it.
+3.  **Install**: Drag the RiverDrop icon into your **Applications** folder.
+
+![Install RiverDrop](images/install-dmg.png){fig-alt="Dragging RiverDrop into the Applications folder"}
+
+## First Launch and Security
+
+When you first open RiverDrop, macOS may display a Gatekeeper warning because the app was downloaded from the internet.
+
+1.  Locate RiverDrop in your Applications folder.
+2.  **Right-click** (or Control-click) the app and select **Open**.
+3.  In the dialog that appears, click **Open** again to confirm.
+
+::: {.callout-note}
+RiverDrop is notarized by Apple to ensure it is free from known malware and safe to run on your Mac.
+:::
+
+## Setting Up Command-Line Tools
+
+For advanced features like accelerated transfers and deep content search, RiverDrop relies on standard open-source tools:
+
+### Rsync
+Used for high-speed transfers and synchronization. While macOS includes a version of `rsync`, it is significantly outdated. We strongly recommend installing a modern version (3.0+) for better performance.
+
+```bash
+brew install rsync
+```
+
+### Ripgrep (rg)
+Used for extremely fast local and remote content searching.
+
+```bash
+brew install ripgrep
+```
+
+## Granting Permissions
+
+The first time you browse a local folder (like your Desktop or Documents), macOS will ask for permission to access that directory. Click **Allow** or **Open** to grant RiverDrop access to manage your files.
+
+![macOS Folder Access Prompt](images/permission-prompt.png){fig-alt="macOS asking for folder access permissions"}

@@ -1,0 +1,53 @@
+# Syncing Directories
+
+RiverDrop's intelligent synchronization is one of its most powerful features, allowing you to keep local and remote folders in perfect sync.
+
+## Sync Overview
+
+Unlike simple uploads or downloads, **Sync** compares the contents of two directories and only transfers what's necessary to make them identical. This process is powered by `rsync` and includes safety features like the **Dry-Run Preview**.
+
+![Sync Preview Pane](images/sync-preview.png){fig-alt="Dry-run sync preview with Added, Modified, and Deleted lists"}
+
+## Dry-Run Preview
+
+Before any files are changed, RiverDrop performs a dry-run to show exactly what will happen.
+
+1.  Navigate to the folders you want to sync in both panes.
+2.  Click the **Sync** (Eye) icon in either the local or remote toolbar.
+3.  RiverDrop will analyze the directories and show you a categorized list:
+    - **Added**: New files that exist in the source but not the destination.
+    - **Modified**: Files that exist in both but have different sizes or timestamps.
+    - **Deleted**: Files that will be removed from the destination because they don't exist in the source.
+
+::: {.callout-warning}
+Syncing with deletions enabled will permanently remove files from the destination directory to match the source. Review the deletions list carefully!
+:::
+
+## Applying Sync
+
+After reviewing the dry-run:
+1.  Verify the list of changes.
+2.  Click **Apply Sync**.
+3.  RiverDrop will start the transfer using `rsync`'s efficient delta-transfer algorithm.
+
+## Directional Syncing
+
+Syncing can be done in either direction:
+- **Sync Download**: Make your Local folder match the Remote folder.
+- **Sync Upload**: Make your Remote folder match the Local folder.
+
+![Directional Sync Picker](images/sync-direction.png){fig-alt="Choosing to sync to or from the remote server"}
+
+## Sync Best Practices
+
+### For Researchers and Scientists
+- **Work Locally**: Do your primary data analysis locally, then **Sync Upload** to the cluster for heavy computation.
+- **Fetch Results**: Once your job is finished on the cluster, **Sync Download** to bring the new output files back to your Mac.
+
+### Avoiding Conflicts
+- Avoid modifying the same file on both the local and remote sides at the same time.
+- Always perform a **Dry-Run** before applying a sync to ensure you're not unintentionally deleting important data.
+
+::: {.callout-note}
+Syncing requires `rsync` to be available on both your Mac and the remote server.
+:::

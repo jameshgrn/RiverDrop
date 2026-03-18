@@ -1,0 +1,41 @@
+# Keyboard Shortcuts
+
+Mastering RiverDrop's keyboard shortcuts will significantly speed up your workflow.
+
+## Navigation
+
+| Shortcut | Action |
+| --- | --- |
+| **Return** | Open the selected file or folder |
+| **Delete** | Move selected local items to Trash or permanently delete remote items |
+| **⌘ + 1** | Go to Local Home directory |
+| **⌘ + ⇧ + G** | Navigate to a specific Local path |
+| **⌘ + R** | Refresh the current directory listing |
+| **⌘ + D** | Disconnect from the current remote server |
+| **ESC** | Clear current search filter or close panels |
+
+## View & Filters
+
+| Shortcut | Action |
+| --- | --- |
+| **⌘ + F** | Focus the Search Filter field in the active pane |
+| **⌘ + ⇧ + .** | Toggle hidden files in the Local pane |
+| **⌘ + ⇧ + ,** | Toggle hidden files in the Remote pane |
+| **⌘ + L** | Toggle (Expand/Collapse) the Transfer Log |
+| **⌘ + ,** | Open RiverDrop Settings |
+
+## File Operations
+
+| Shortcut | Action |
+| --- | --- |
+| **⌘ + Click** | Select multiple non-contiguous files |
+| **⇧ + Click** | Select a range of files |
+| **⌘ + ⇧ + C** | Copy the remote path of the selected files |
+| **Space** | (Local) Quick Look for the selected file |
+
+## Customizing Shortcuts
+RiverDrop follows standard macOS keyboard conventions. You can customize many of these shortcuts via **System Settings > Keyboard > Keyboard Shortcuts > App Shortcuts**.
+
+::: {.callout-tip}
+If you're often searching for files, remember that **⌘+F** followed by **ESC** is the fastest way to find a file and then return to your full project view.
+:::
