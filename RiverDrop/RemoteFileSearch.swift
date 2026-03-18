@@ -2,12 +2,13 @@ import Foundation
 
 struct RemoteFileSearchResult: Identifiable {
     let id = UUID()
-    let relativePath: String
+    let absolutePath: String   // full remote path from find output
+    let relativePath: String   // display-only, relative to search root
     let filename: String
     let isDirectory: Bool
 
     var directoryPath: String {
-        (relativePath as NSString).deletingLastPathComponent
+        (absolutePath as NSString).deletingLastPathComponent
     }
 }
 
@@ -38,7 +39,7 @@ final class RemoteFileSearch: ObservableObject {
             let dirArgs = directories
                 .map { $0.shellQuoted }
                 .joined(separator: " ")
-            let findCommand = "find \(dirArgs) -maxdepth 8 -iname \(escapedPattern.shellQuoted) -not -path '*/.*' 2>/dev/null | head -200"
+            let findCommand = "find \(dirArgs) -maxdepth 8 -iname \(escapedPattern.shellQuoted) -not -path '*/.*' 2>/dev/null | head -300"
 
             do {
                 let output = try await service.executeCommand(findCommand, mergeStreams: false)
@@ -51,7 +52,7 @@ final class RemoteFileSearch: ObservableObject {
                     guard !path.isEmpty, seen.insert(path).inserted else { continue }
 
                     let filename = (path as NSString).lastPathComponent
-                    let isDir = filename.contains(".") ? false : true // heuristic
+                    let isDir = false // find returns files; navigate goes to parent dir
 
                     // Build relative path from the first matching search root
                     var relative = path
@@ -64,6 +65,7 @@ final class RemoteFileSearch: ObservableObject {
                     }
 
                     results.append(RemoteFileSearchResult(
+                        absolutePath: path,
                         relativePath: relative,
                         filename: filename,
                         isDirectory: isDir
