@@ -21,6 +21,7 @@ struct LocalBrowserView: View {
     @State private var fileTypeFilter = ""
     @State private var highlightFileName: String?
     @StateObject private var ripgrepSearch = RipgrepSearch()
+    @StateObject private var localFileSearch = LocalFileSearch()
     @State private var showDeleteConfirmation = false
     @State private var itemToDelete: LocalFileItem?
     @State private var showTrashConfirmation = false
@@ -71,6 +72,73 @@ struct LocalBrowserView: View {
     // MARK: - Body
 
     var body: some View {
+        localPane
+            .onAppear {
+                savedBookmarks = BookmarkManager.load()
+                if !hasRequestedAccess {
+                    hasRequestedAccess = true
+                    requestInitialAccess()
+                }
+            }
+            .onChange(of: recentlyDownloaded) { _, _ in loadDirectory() }
+            .onChange(of: searchText) { _, newQuery in
+                localDisplayLimit = 200
+                searchDebounceTask?.cancel()
+                let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty {
+                    searchResults = []
+                    searchMatchRanges = [:]
+                    searchIndex.cancel()
+                    localFileSearch.cancel()
+                    return
+                }
+                searchDebounceTask = Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled else { return }
+                    localFileSearch.search(query: trimmed, in: [localCurrentDirectory])
+                    await searchIndex.search(query: trimmed)
+                    guard !Task.isCancelled else { return }
+                    searchResults = searchIndex.results.map(\.item)
+                    searchMatchRanges = Dictionary(
+                        uniqueKeysWithValues: searchIndex.results.map { ($0.item.id, $0.matchedRanges) }
+                    )
+                }
+            }
+            .onChange(of: showHiddenFiles) { _, _ in
+                selectedIDs = []
+                localDisplayLimit = 200
+                loadDirectory()
+            }
+            .onDisappear { stopSecurityScopedAccess() }
+            .alert("Delete Permanently?", isPresented: $showDeleteConfirmation, presenting: itemToDelete) { file in
+                Button("Delete", role: .destructive) {
+                    if let err = LocalFileOperations.permanentlyDelete(file) { sftpService.errorMessage = err }
+                    selectedIDs.remove(file.id)
+                    loadDirectory()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: { file in
+                Text("\"\(file.filename)\" will be permanently deleted. This cannot be undone.")
+            }
+            .alert("Move to Trash?", isPresented: $showTrashConfirmation) {
+                Button("Move to Trash", role: .destructive) { trashSelectedFiles() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("\(selectedIDs.count) item(s) will be moved to the Trash.")
+            }
+            .alert("Rename", isPresented: $showRenameAlert) {
+                TextField("New name", text: $renameText)
+                Button("Rename") {
+                    if let file = itemToRename {
+                        if let err = LocalFileOperations.rename(file, to: renameText) { sftpService.errorMessage = err }
+                        loadDirectory()
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: { Text("Enter a new name:") }
+    }
+
+    private var localPane: some View {
         VStack(spacing: 0) {
             PaneHeader("Local", icon: "laptopcomputer", subtitle: localCurrentDirectory.lastPathComponent)
             LocalToolbarView(
@@ -139,10 +207,7 @@ struct LocalBrowserView: View {
             if isDropTargeted {
                 RoundedRectangle(cornerRadius: RD.cornerRadius)
                     .fill(Color.green.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: RD.cornerRadius)
-                            .strokeBorder(Color.green.opacity(0.4), lineWidth: 1.5)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: RD.cornerRadius).strokeBorder(Color.green.opacity(0.4), lineWidth: 1.5))
                     .shadow(color: Color.green.opacity(0.15), radius: 8)
                     .allowsHitTesting(false)
             }
@@ -151,48 +216,10 @@ struct LocalBrowserView: View {
             handleLocalDrop(providers)
             return true
         }
-        .onAppear {
-            savedBookmarks = BookmarkManager.load()
-            if !hasRequestedAccess {
-                hasRequestedAccess = true
-                requestInitialAccess()
-            }
-        }
-        .onChange(of: recentlyDownloaded) { _, _ in
-            loadDirectory()
-        }
-        .onChange(of: searchText) { _, newQuery in
-            localDisplayLimit = 200
-            searchDebounceTask?.cancel()
-            let trimmed = newQuery.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty {
-                searchResults = []
-                searchMatchRanges = [:]
-                searchIndex.cancel()
-                return
-            }
-            searchDebounceTask = Task {
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { return }
-                await searchIndex.search(query: trimmed)
-                guard !Task.isCancelled else { return }
-                searchResults = searchIndex.results.map(\.item)
-                searchMatchRanges = Dictionary(
-                    uniqueKeysWithValues: searchIndex.results.map { ($0.item.id, $0.matchedRanges) }
-                )
-            }
-        }
-        .onChange(of: showHiddenFiles) { _, _ in
-            selectedIDs = []
-            localDisplayLimit = 200
-            loadDirectory()
-        }
         .background {
             Button("") { isSearchFieldFocused = true }
                 .keyboardShortcut("f", modifiers: .command)
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .accessibilityHidden(true)
+                .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
         }
         .onKeyPress(.escape) {
             if isSearchFieldFocused || !searchText.isEmpty {
@@ -202,75 +229,29 @@ struct LocalBrowserView: View {
             }
             return .ignored
         }
-        .onDisappear {
-            stopSecurityScopedAccess()
-        }
-        .alert("Delete Permanently?", isPresented: $showDeleteConfirmation, presenting: itemToDelete) { file in
-            Button("Delete", role: .destructive) {
-                if let err = LocalFileOperations.permanentlyDelete(file) {
-                    sftpService.errorMessage = err
-                }
-                selectedIDs.remove(file.id)
-                loadDirectory()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: { file in
-            Text("\"\(file.filename)\" will be permanently deleted. This cannot be undone.")
-        }
-        .alert("Move to Trash?", isPresented: $showTrashConfirmation) {
-            Button("Move to Trash", role: .destructive) { trashSelectedFiles() }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("\(selectedIDs.count) item(s) will be moved to the Trash.")
-        }
-        .alert("Rename", isPresented: $showRenameAlert) {
-            TextField("New name", text: $renameText)
-            Button("Rename") {
-                if let file = itemToRename {
-                    if let err = LocalFileOperations.rename(file, to: renameText) {
-                        sftpService.errorMessage = err
-                    }
-                    loadDirectory()
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Enter a new name:")
-        }
     }
 
     // MARK: - File List
 
     private var fileList: some View {
         Group {
-            if filteredFiles.isEmpty {
-                if searchText.isEmpty {
-                    EmptyStateView("Empty directory", icon: "folder", subtitle: "No files in this location")
-                } else {
-                    EmptyStateView("No matches", icon: "magnifyingglass", subtitle: "Try a different search term")
-                }
+            if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                localUnifiedSearchResults
+            } else if files.isEmpty {
+                EmptyStateView("Empty directory", icon: "folder", subtitle: "No files in this location")
             } else {
                 List {
                     ForEach(displayedFiles) { file in
-                        if file.isDirectory {
-                            folderRow(file)
-                        } else {
-                            fileRow(file)
-                        }
+                        if file.isDirectory { folderRow(file) } else { fileRow(file) }
                     }
                     if hasMoreFiles {
                         HStack {
                             Spacer()
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Loading more\u{2026}")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            ProgressView().controlSize(.small)
+                            Text("Loading more\u{2026}").font(.caption).foregroundStyle(.secondary)
                             Spacer()
                         }
-                        .onAppear {
-                            localDisplayLimit += 200
-                        }
+                        .onAppear { localDisplayLimit += 200 }
                     }
                 }
                 .listStyle(.inset)
@@ -279,15 +260,72 @@ struct LocalBrowserView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onKeyPress(.return) {
             guard !selectedIDs.isEmpty else { return .ignored }
-            for file in selectedFiles {
-                LocalFileOperations.openFile(file) { navigateTo($0) }
-            }
+            for file in selectedFiles { LocalFileOperations.openFile(file) { navigateTo($0) } }
             return .handled
         }
         .onKeyPress(.delete) {
             guard !selectedIDs.isEmpty else { return .ignored }
             showTrashConfirmation = true
             return .handled
+        }
+    }
+
+    private var localUnifiedSearchResults: some View {
+        let localMatches = filteredFiles
+        let deepResults = localFileSearch.results.filter { result in
+            // Exclude items already shown in current dir matches
+            !localMatches.contains(where: { $0.url == result.url })
+        }
+        let isStillSearching = searchIndex.isSearching || localFileSearch.isSearching
+        let hasAny = !localMatches.isEmpty || !deepResults.isEmpty
+
+        return Group {
+            if !hasAny && !isStillSearching {
+                EmptyStateView("No results for \"\(searchText)\"", icon: "magnifyingglass", subtitle: nil)
+            } else {
+                List {
+                    if !localMatches.isEmpty {
+                        Section("Current folder") {
+                            ForEach(localMatches) { file in
+                                if file.isDirectory { folderRow(file) } else { fileRow(file) }
+                            }
+                        }
+                    }
+                    Section {
+                        if isStillSearching && deepResults.isEmpty {
+                            HStack(spacing: RD.Spacing.sm) {
+                                ProgressView().controlSize(.small)
+                                Text("Searching subdirectories\u{2026}")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        ForEach(deepResults) { result in
+                            Button {
+                                navigateTo(result.directoryURL)
+                                highlightFileName = result.filename
+                            } label: {
+                                HStack(spacing: RD.Spacing.sm) {
+                                    FileIconView(filename: result.filename, isDirectory: false)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(result.filename)
+                                            .font(.body.weight(.medium)).lineLimit(1)
+                                        Text(result.relativePath)
+                                            .font(.caption).foregroundStyle(.secondary)
+                                            .lineLimit(1).truncationMode(.middle)
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } header: {
+                        if !deepResults.isEmpty || (isStillSearching && localMatches.isEmpty) {
+                            Text("In subdirectories")
+                        }
+                    }
+                }
+                .listStyle(.inset)
+            }
         }
     }
 

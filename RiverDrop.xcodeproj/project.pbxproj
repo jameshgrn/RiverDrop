@@ -24,6 +24,9 @@
 		5D738D461AD957016FF547F5 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7584E43BAC720FCB206A8B4 /* MainView.swift */; };
 		66F66B915BFCF6DDC8A3B145 /* DirectorySearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26D99032F42CE96ED039572 /* DirectorySearchIndex.swift */; };
 		687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* RemoteFileSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978869504132 /* RemoteFileSearch.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* LocalFileSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* LocalFileSearch.swift */; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* RemoteFileSearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D3C4B5A697886950413201 /* RemoteFileSearchPanel.swift */; };
 		6E939404844F4F1708429168 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92F4E94228FEDA36172E00B /* KeychainHelper.swift */; };
 		793EEFD64EAB34E77373744B /* RemoteBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FDF1E76B3E2F47F6298FA2 /* RemoteBrowserView.swift */; };
 		79B1FC1D9D1D6A95D3159756 /* LocalBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B534458F7928E586D46EEA2A /* LocalBrowserView.swift */; };
@@ -94,6 +97,9 @@
 		C9C9EB71237DC00DE4CB2789 /* HostKeyManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostKeyManagementView.swift; sourceTree = "<group>"; };
 		D03C91F17941C4221120871D /* TransferLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferLogView.swift; sourceTree = "<group>"; };
 		D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteRipgrepSearch.swift; sourceTree = "<group>"; };
+		F1E2D3C4B5A6978869504132 /* RemoteFileSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFileSearch.swift; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* LocalFileSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileSearch.swift; sourceTree = "<group>"; };
+		E2D3C4B5A697886950413201 /* RemoteFileSearchPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFileSearchPanel.swift; sourceTree = "<group>"; };
 		DF057F6F4855F6DE9C34679C /* ServerEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEntry.swift; sourceTree = "<group>"; };
 		DF6B20A3350E46FFABF59CC9 /* KeyboardInteractiveAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInteractiveAuth.swift; sourceTree = "<group>"; };
 		E9FD679963557A16BC6D49ED /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -150,6 +156,9 @@
 				8C5F30DB7F8D6ED067B027F8 /* PrivacyInfo.xcprivacy */,
 				A6FDF1E76B3E2F47F6298FA2 /* RemoteBrowserView.swift */,
 				0EE3B26834B7D7614767F936 /* RemoteFileItem.swift */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* LocalFileSearch.swift */,
+				F1E2D3C4B5A6978869504132 /* RemoteFileSearch.swift */,
+				E2D3C4B5A697886950413201 /* RemoteFileSearchPanel.swift */,
 				D551FC987C7DD15D91179B68 /* RemoteRipgrepSearch.swift */,
 				EB90A53412316A0A7C768615 /* RipgrepSearch.swift */,
 				178AF0F18C7ACAA417098B18 /* RiverDrop.entitlements */,
@@ -281,6 +290,9 @@
 				5D738D461AD957016FF547F5 /* MainView.swift in Sources */,
 				793EEFD64EAB34E77373744B /* RemoteBrowserView.swift in Sources */,
 				AA65B6C7A385F244EF5976D2 /* RemoteFileItem.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* LocalFileSearch.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* RemoteFileSearch.swift in Sources */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* RemoteFileSearchPanel.swift in Sources */,
 				687AB3EBC2F002DBBE92532A /* RemoteRipgrepSearch.swift in Sources */,
 				E6FCE06170BDCA20193F3B74 /* RipgrepSearch.swift in Sources */,
 				98ED330BF31DB38DFC771A4A /* RiverDropApp.swift in Sources */,

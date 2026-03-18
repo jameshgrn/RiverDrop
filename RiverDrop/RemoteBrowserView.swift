@@ -21,6 +21,10 @@ struct RemoteBrowserView: View {
     @State private var showRemoteContentSearch = false
     @State private var remoteContentSearchQuery = ""
     @StateObject private var remoteRipgrepSearch = RemoteRipgrepSearch()
+    @State private var showRemoteFileSearch = false
+    @State private var remoteFileSearchQuery = ""
+    @StateObject private var remoteFileSearch = RemoteFileSearch()
+    @State private var remoteSearchDirectories: [String] = UserDefaults.standard.stringArray(forKey: DefaultsKey.remoteSearchDirectories) ?? []
     @State private var hoveredFileID: RemoteFileItem.ID?
     @State private var isRemoteDropTargeted = false
     @State private var searchIndex = DirectorySearchIndex<RemoteFileItem>()
@@ -80,77 +84,14 @@ struct RemoteBrowserView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            PaneHeader("Remote", icon: "server.rack", subtitle: sftpService.currentPath)
-            Divider()
-            remoteToolbar
-            Divider()
-            remotePathBar
-            Divider()
-
-            if showRemoteContentSearch {
-                remoteContentSearchPanel
-                Divider()
-            }
-
-            if sftpService.isLoadingDirectory {
-                VStack(spacing: RD.Spacing.md) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Loading\u{2026}")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredRemoteFiles.isEmpty {
-                EmptyStateView(
-                    remoteSearchText.isEmpty ? "Empty directory" : "No matches",
-                    icon: remoteSearchText.isEmpty ? "folder" : "magnifyingglass",
-                    subtitle: remoteSearchText.isEmpty ? nil : "Try a different search term"
+        remotePane
+            .sheet(isPresented: $showRemoteFileSearch) {
+                SearchDirectoriesSheet(
+                    searchDirectories: $remoteSearchDirectories,
+                    currentDirectory: sftpService.currentPath
                 )
-            } else {
-                List {
-                    ForEach(displayedRemoteFiles) { file in
-                        if file.isDirectory {
-                            remoteFolderRow(file)
-                        } else {
-                            remoteFileRow(file)
-                        }
-                    }
-                    if hasMoreRemoteFiles {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Loading more...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                        .onAppear {
-                            remoteDisplayLimit += 200
-                        }
-                    }
-                }
-                .listStyle(.inset)
             }
-
-            Divider()
-            unifiedStagingArea
-        }
-        .overlay(
-            isRemoteDropTargeted
-                ? RoundedRectangle(cornerRadius: RD.cornerRadius)
-                    .strokeBorder(Color.green, lineWidth: 2)
-                    .background(Color.green.opacity(0.06))
-                    .allowsHitTesting(false)
-                : nil
-        )
-        .onDrop(of: [.fileURL], isTargeted: $isRemoteDropTargeted) { providers in
-            handleRemoteDrop(providers)
-            return true
-        }
-        .sheet(isPresented: $showDryRunPreview) {
+            .sheet(isPresented: $showDryRunPreview) {
             if let result = transferManager.dryRunResult {
                 DryRunPreviewView(
                     result: result,
@@ -187,11 +128,19 @@ struct RemoteBrowserView: View {
                 searchResults = []
                 searchMatchRanges = [:]
                 searchIndex.cancel()
+                remoteFileSearch.cancel()
                 return
             }
             searchDebounceTask = Task {
                 try? await Task.sleep(for: .milliseconds(150))
                 guard !Task.isCancelled else { return }
+                // Recursive find across server dirs (starts async, streams in)
+                if sftpService.isConnected {
+                    var dirs = [sftpService.currentPath]
+                    for dir in remoteSearchDirectories where dir != sftpService.currentPath { dirs.append(dir) }
+                    remoteFileSearch.search(query: trimmed, in: dirs, via: sftpService)
+                }
+                // Fuzzy match current dir (awaited, from cached listing)
                 await searchIndex.search(query: trimmed)
                 guard !Task.isCancelled else { return }
                 searchResults = searchIndex.results.map(\.item)
@@ -220,12 +169,42 @@ struct RemoteBrowserView: View {
             remoteDisplayLimit = 200
             searchIndex.build(from: visibleRemoteFiles) { $0.filename }
         }
+        .onChange(of: remoteSearchDirectories) { _, newDirs in
+            UserDefaults.standard.set(newDirs, forKey: DefaultsKey.remoteSearchDirectories)
+        }
+    }
+
+    // MARK: - Pane Layout
+
+    private var remotePane: some View {
+        VStack(spacing: 0) {
+            PaneHeader("Remote", icon: "server.rack", subtitle: sftpService.currentPath)
+            Divider()
+            remoteToolbar
+            Divider()
+            remotePathBar
+            Divider()
+            if showRemoteContentSearch { remoteContentSearchPanel; Divider() }
+            remoteMainContent
+            Divider()
+            unifiedStagingArea
+        }
+        .overlay(
+            isRemoteDropTargeted
+                ? RoundedRectangle(cornerRadius: RD.cornerRadius)
+                    .strokeBorder(Color.green, lineWidth: 2)
+                    .background(Color.green.opacity(0.06))
+                    .allowsHitTesting(false)
+                : nil
+        )
+        .onDrop(of: [.fileURL], isTargeted: $isRemoteDropTargeted) { providers in
+            handleRemoteDrop(providers)
+            return true
+        }
         .background {
             Button("") { isSearchFieldFocused = true }
                 .keyboardShortcut("f", modifiers: .command)
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .accessibilityHidden(true)
+                .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
         }
         .onKeyPress(.escape) {
             if isSearchFieldFocused || !remoteSearchText.isEmpty {
@@ -446,6 +425,109 @@ struct RemoteBrowserView: View {
                 Task { await navigateRemoteTo(path) }
             }
         )
+    }
+
+    // MARK: - Unified Search Results (Alfred-style)
+
+    @ViewBuilder
+    private var remoteMainContent: some View {
+        if sftpService.isLoadingDirectory {
+            VStack(spacing: RD.Spacing.md) {
+                ProgressView().controlSize(.small)
+                Text("Loading\u{2026}").font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if remoteSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            if visibleRemoteFiles.isEmpty {
+                EmptyStateView("Empty directory", icon: "folder", subtitle: nil)
+            } else {
+                remoteDirectoryList
+            }
+        } else {
+            remoteUnifiedSearchResults
+        }
+    }
+
+    private var remoteDirectoryList: some View {
+        List {
+            ForEach(displayedRemoteFiles) { file in
+                if file.isDirectory { remoteFolderRow(file) } else { remoteFileRow(file) }
+            }
+            if hasMoreRemoteFiles {
+                HStack {
+                    Spacer()
+                    ProgressView().controlSize(.small)
+                    Text("Loading more\u{2026}").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .onAppear { remoteDisplayLimit += 200 }
+            }
+        }
+        .listStyle(.inset)
+    }
+
+    private var remoteSearchIsActive: Bool { searchIndex.isSearching || remoteFileSearch.isSearching }
+    private var remoteSearchHasAny: Bool { !filteredRemoteFiles.isEmpty || !remoteFileSearch.results.isEmpty }
+
+    @ViewBuilder
+    private var remoteUnifiedSearchResults: some View {
+        if !remoteSearchHasAny && !remoteSearchIsActive {
+            VStack(spacing: RD.Spacing.md) {
+                Image(systemName: "magnifyingglass").font(.title3).foregroundStyle(.tertiary)
+                Text("No results for \"\(remoteSearchText)\"")
+                    .font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                Button {
+                    showRemoteFileSearch.toggle()
+                } label: {
+                    Label("Add more search directories", systemImage: "folder.badge.plus")
+                        .font(.caption).foregroundColor(.accentColor)
+                }
+                .buttonStyle(.borderless)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                if !filteredRemoteFiles.isEmpty {
+                    Section("Current folder") {
+                        ForEach(filteredRemoteFiles) { file in
+                            if file.isDirectory { remoteFolderRow(file) } else { remoteFileRow(file) }
+                        }
+                    }
+                }
+                Section {
+                    if remoteSearchIsActive && remoteFileSearch.results.isEmpty {
+                        HStack(spacing: RD.Spacing.sm) {
+                            ProgressView().controlSize(.small)
+                            Text("Searching subdirectories\u{2026}")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(remoteFileSearch.results) { result in
+                        Button {
+                            Task { await navigateRemoteTo(result.directoryPath) }
+                        } label: {
+                            HStack(spacing: RD.Spacing.sm) {
+                                FileIconView(filename: result.filename, isDirectory: result.isDirectory, size: 15)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(result.filename)
+                                        .font(.callout.weight(.medium)).lineLimit(1)
+                                    Text(result.relativePath)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                        .lineLimit(1).truncationMode(.middle)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    if !remoteFileSearch.results.isEmpty || (remoteSearchIsActive && filteredRemoteFiles.isEmpty) {
+                        Text("In subdirectories")
+                    }
+                }
+            }
+            .listStyle(.inset)
+        }
     }
 
     // MARK: - Content Search Panel
